@@ -21,8 +21,9 @@ func mustMakeMove(t *testing.T, board *engine.BoardState, from, to engine.Square
 	if piece.Type == engine.None {
 		t.Fatalf("no piece at source square %v", from)
 	}
-	if board.MakeMove(piece, from, to) == nil {
-		t.Fatalf("expected move to be valid from %v to %v", from, to)
+	_, err := board.MakeMove(piece, from, to, engine.None)
+	if err != nil {
+		t.Fatalf("expected move to be valid from %v to %v, got error: %v", from, to, err)
 	}
 }
 
@@ -32,7 +33,8 @@ func mustRejectMove(t *testing.T, board *engine.BoardState, from, to engine.Squa
 	if piece.Type == engine.None {
 		t.Fatalf("no piece at source square %v", from)
 	}
-	if board.MakeMove(piece, from, to) != nil {
+	_, err := board.MakeMove(piece, from, to, engine.None)
+	if err == nil {
 		t.Fatalf("expected move to be invalid from %v to %v", from, to)
 	}
 }
@@ -138,6 +140,20 @@ func TestEnPassantWhite(t *testing.T) {
 	}
 }
 
+func TestEnPassantInvalidWhenNoTarget(t *testing.T) {
+	board := engine.NewEmptyPosition()
+	placeKings(board)
+
+	whitePawnSquare := sq(4, 3)
+	blackPawnSquare := sq(3, 3)
+	board.SetPiece(whitePawnSquare, engine.Piece{Type: engine.Pawn, Color: engine.White})
+	board.SetPiece(blackPawnSquare, engine.Piece{Type: engine.Pawn, Color: engine.Black})
+	board.SideToMove = engine.White
+	board.EnPassantSquare = engine.NoSquare
+
+	mustRejectMove(t, board, whitePawnSquare, sq(3, 2))
+}
+
 func TestCastlingWhiteKingSide(t *testing.T) {
 	board := engine.NewEmptyPosition()
 	board.SideToMove = engine.White
@@ -163,20 +179,6 @@ func TestCastlingWhiteKingSide(t *testing.T) {
 	if board.PieceAt(rookFrom).Type != engine.None {
 		t.Fatalf("expected original rook square to be empty after castling")
 	}
-}
-
-func TestEnPassantInvalidWhenNoTarget(t *testing.T) {
-	board := engine.NewEmptyPosition()
-	placeKings(board)
-
-	whitePawnSquare := sq(4, 3)
-	blackPawnSquare := sq(3, 3)
-	board.SetPiece(whitePawnSquare, engine.Piece{Type: engine.Pawn, Color: engine.White})
-	board.SetPiece(blackPawnSquare, engine.Piece{Type: engine.Pawn, Color: engine.Black})
-	board.SideToMove = engine.White
-	board.EnPassantSquare = engine.NoSquare
-
-	mustRejectMove(t, board, whitePawnSquare, sq(3, 2))
 }
 
 func TestCastlingBlockedByPiece(t *testing.T) {

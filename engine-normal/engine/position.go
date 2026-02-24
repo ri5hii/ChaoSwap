@@ -2,6 +2,7 @@ package engine
 
 import "fmt"
 
+// BoardState holds all mutable state required to validate and apply moves for a single game.
 type BoardState struct {
 	ChessBoard      Board
 	SideToMove      PieceColor
@@ -16,6 +17,7 @@ const (
 	BlackQueenSide uint8 = 1 << 3
 )
 
+// NewEmptyPosition returns a board state with an empty board and default rights/state for a new game.
 func NewEmptyPosition() *BoardState {
 	return &BoardState{
 		SideToMove:      White,
@@ -24,21 +26,25 @@ func NewEmptyPosition() *BoardState {
 	}
 }
 
+// NewGamePosition returns a board state initialized to the standard chess starting position.
 func NewGamePosition() *BoardState {
 	board := NewEmptyPosition()
 
 	backRank := []PieceType{Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook}
-
 	for file := 0; file <= 7; file++ {
-		board.SetPiece(Square{file, 0}, Piece{Type: backRank[file], Color: Black})
-		board.SetPiece(Square{file, 1}, Piece{Type: Pawn, Color: Black})
-		board.SetPiece(Square{file, 6}, Piece{Type: Pawn, Color: White})
-		board.SetPiece(Square{file, 7}, Piece{Type: backRank[file], Color: White})
+		board.SetPiece(Square{File: file, Rank: 0}, Piece{Type: backRank[file], Color: Black})
+		board.SetPiece(Square{File: file, Rank: 1}, Piece{Type: Pawn, Color: Black})
+		board.SetPiece(Square{File: file, Rank: 6}, Piece{Type: Pawn, Color: White})
+		board.SetPiece(Square{File: file, Rank: 7}, Piece{Type: backRank[file], Color: White})
 	}
 
 	return board
 }
 
+// SetPiece places a piece on the given square.
+// If the square is invalid, the operation is ignored.
+//
+// This is a low-level mutator used by move application and tests.
 func (boardState *BoardState) SetPiece(square Square, piece Piece) {
 	if !square.IsValid() {
 		return
@@ -46,6 +52,8 @@ func (boardState *BoardState) SetPiece(square Square, piece Piece) {
 	boardState.ChessBoard[square.Rank][square.File] = piece
 }
 
+// PieceAt returns the piece located at square.
+// If the square is invalid, it returns a None piece.
 func (boardState *BoardState) PieceAt(square Square) Piece {
 	if !square.IsValid() {
 		return Piece{Type: None}
@@ -53,56 +61,65 @@ func (boardState *BoardState) PieceAt(square Square) Piece {
 	return boardState.ChessBoard[square.Rank][square.File]
 }
 
+// PrintBoard prints an ASCII view of the board to stdout.
+// This is intended for debugging, not for TUI rendering.
 func PrintBoard(boardState *BoardState) {
 	for rank := 0; rank <= 7; rank++ {
 		fmt.Print(8-rank, " ")
 		for file := 0; file <= 7; file++ {
-			fmt.Print(boardState.ChessBoard[rank][file].PieceIcon(), " ")
+			fmt.Print(PieceIcon(boardState.ChessBoard[rank][file]), " ")
 		}
 		fmt.Println()
 	}
 	fmt.Println("  a b c d e f g h")
 }
 
-func (piece Piece) PieceIcon() string {
+// PieceIcon returns a single-character representation of a piece.
+// It is used for simple console rendering and debugging.
+func PieceIcon(piece Piece) string {
 	if piece.Type == None {
 		return "."
 	}
+
 	if piece.Color == White {
 		switch piece.Type {
 		case Pawn:
-			return "♙"
+			return "p"
 		case Rook:
-			return "♖"
+			return "r"
 		case Knight:
-			return "♘"
+			return "n"
 		case Bishop:
-			return "♗"
+			return "b"
 		case Queen:
-			return "♕"
+			return "q"
 		case King:
-			return "♔"
+			return "k"
 		}
 	}
+
 	if piece.Color == Black {
 		switch piece.Type {
 		case Pawn:
-			return "♟"
+			return "P"
 		case Rook:
-			return "♜"
+			return "R"
 		case Knight:
-			return "♞"
+			return "N"
 		case Bishop:
-			return "♝"
+			return "B"
 		case Queen:
-			return "♛"
+			return "Q"
 		case King:
-			return "♚"
+			return "K"
 		}
 	}
+
 	return "?"
 }
 
+// SquareNotation converts a square to coordinate notation like "e2".
+// If the square is invalid, it returns "--".
 func SquareNotation(square Square) string {
 	if !square.IsValid() {
 		return "--"
@@ -113,15 +130,19 @@ func SquareNotation(square Square) string {
 	})
 }
 
-func ParseSquareNotation(notation string) (Square, bool) {
+// ParseNotationToSquare parses a coordinate like "e2" into a Square.
+// It returns the parsed square, a boolean indicating validity, and an error for malformed input.
+func ParseNotationToSquare(notation string) (Square, bool, error) {
 	if len(notation) != 2 {
-		return NoSquare, false
+		return NoSquare, false, fmt.Errorf("Invalid square notation: %s", notation)
 	}
+
 	file := int(notation[0] - 'a')
 	rank := int(notation[1] - '1')
 	square := Square{File: file, Rank: rank}
 	if !square.IsValid() {
-		return NoSquare, false
+		return NoSquare, false, fmt.Errorf("Invalid square notation: %s", notation)
 	}
-	return square, true
+
+	return square, true, nil
 }
