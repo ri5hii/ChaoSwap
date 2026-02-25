@@ -1,6 +1,8 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Undo captures the minimal state required to restore the board after a successful MakeMove.
 //
@@ -10,6 +12,7 @@ import "fmt"
 //   - the previous castling rights and en passant square
 //   - the previous side to move
 //   - promotion information, if the move promoted a pawn
+//   - game state information (ongoing, stalemate, checkmate, draw)
 type Undo struct {
 	From           Square
 	To             Square
@@ -19,6 +22,7 @@ type Undo struct {
 	PrevSideToMove PieceColor
 	PrevPromotion  PieceType
 	PromotedTo     PieceType
+	PrevGameState  GameState
 }
 
 // MakeMove applies a move to the board if it is legal.
@@ -28,6 +32,7 @@ type Undo struct {
 //   - piece-specific movement rules
 //   - special rules (castling, en passant, promotion)
 //   - king safety (the mover may not leave their king in check)
+//   - disallow moves while king is in check (except moves that resolve the check)
 //
 // On success it mutates the board and flips SideToMove, returning an Undo record.
 // On failure it returns an error and leaves the board unchanged.
@@ -96,14 +101,86 @@ func (board *BoardState) MakeMove(piece Piece, from Square, to Square, promotion
 		board.EnPassantSquare = NoSquare
 	}
 
-	kingSquare := board.FindKing(piece.Color)
-	inCheck, checkErr := board.IsSquareAttacked(kingSquare, PieceColor(1-piece.Color))
+	inCheck, checkErr := board.InCheck(piece.Color)
 	if checkErr != nil {
 		return nil, checkErr
 	}
 	if inCheck {
 		UndoMove(board, undo)
 		return nil, fmt.Errorf("Invalid move: cannot leave your king in check.")
+	}
+
+	board.SideToMove = 1 - board.SideToMove
+	return &undo, nil
+}
+
+// TryMove applies a move to the board state without enforcing king-safety (self-check) rules.
+//
+// This exists to support functions like IsMoveLegal / IsCheckMate / IsStaleMate, which need
+// to explore candidate moves without recursively invoking MakeMove.
+//
+// Callers must UndoMove the returned undo record to restore the board.
+func (board *BoardState) TryMove(piece Piece, from Square, to Square, promotionType PieceType) (*Undo, error) {
+	if !from.IsValid() || !to.IsValid() {
+		return nil, fmt.Errorf("Invalid move: source or destination square is out of bounds.")
+	}
+
+	sourcePiece := board.PieceAt(from)
+	if sourcePiece.Type == None {
+		return nil, fmt.Errorf("Invalid move: no piece at %s.", SquareNotation(from))
+	}
+
+	if piece.Color != board.SideToMove {
+		return nil, fmt.Errorf("Invalid move: it's not your turn.")
+	}
+
+	target := board.PieceAt(to)
+	if target.Type != None && target.Color == piece.Color {
+		return nil, fmt.Errorf("Invalid move: destination %s is occupied by your own piece.", SquareNotation(to))
+	}
+
+	undo := Undo{
+		From:           from,
+		To:             to,
+		Captured:       target,
+		PrevCastle:     board.CastlingRights,
+		PrevEnPassant:  board.EnPassantSquare,
+		PrevSideToMove: board.SideToMove,
+		PrevPromotion:  None,
+		PromotedTo:     promotionType,
+	}
+
+	prevEnPassant := board.EnPassantSquare
+
+	var valid bool
+	var err error
+
+	switch piece.Type {
+	case Pawn:
+		valid, err = board.handlePawnMove(piece, from, to, &undo)
+	case Knight:
+		valid, err = board.handleKnightMove(piece, from, to)
+	case Bishop:
+		valid, err = board.handleSlidingMove(piece, from, to)
+	case Rook:
+		valid, err = board.handleRookMove(piece, from, to)
+	case Queen:
+		valid, err = board.handleSlidingMove(piece, from, to)
+	case King:
+		valid, err = board.handleKingMove(piece, from, to)
+	default:
+		return nil, fmt.Errorf("Invalid move: unknown piece type.")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	if !valid {
+		return nil, fmt.Errorf("Invalid move.")
+	}
+
+	if board.EnPassantSquare.Equals(prevEnPassant) {
+		board.EnPassantSquare = NoSquare
 	}
 
 	board.SideToMove = 1 - board.SideToMove
@@ -460,6 +537,176 @@ func (board *BoardState) FindKing(color PieceColor) Square {
 		}
 	}
 	return NoSquare
+}
+
+// InCheck reports whether the king of the given color is currently in check.
+func (board *BoardState) InCheck(color PieceColor) (bool, error) {
+	kingSquare := board.FindKing(color)
+	if kingSquare.Equals(NoSquare) {
+		return false, fmt.Errorf("King not found for color: %v", color)
+	}
+	return board.IsSquareAttacked(kingSquare, PieceColor(1-color))
+}
+
+// DoesMoveResolveCheck reports whether a move by piece from->to would resolve a check on the piece's color.
+//
+// This uses a trial move that bypasses MakeMove's king-safety checks to avoid recursive
+// dependencies between MakeMove and checkmate/stalemate evaluation.
+func (board *BoardState) DoesMoveResolveCheck(piece Piece, from Square, to Square) (bool, error) {
+	undo, err := board.TryMove(piece, from, to, None)
+	if err != nil {
+		return false, err
+	}
+	defer UndoMove(board, *undo)
+
+	inCheck, err := board.InCheck(piece.Color)
+	if err != nil {
+		return false, err
+	}
+	return !inCheck, nil
+}
+
+// IsStaleMate reports whether the side to move has no legal moves but is not in check.
+func (board *BoardState) IsStaleMate() (bool, error) {
+	inCheck, err := board.InCheck(board.SideToMove)
+	if err != nil {
+		return false, err
+	}
+	if inCheck {
+		return false, nil
+	}
+
+	// Optimize: iterate only pseudo-legal candidates instead of scanning all 64 destination squares
+	// for every piece. King safety is still enforced by IsMoveLegal.
+	candidates := board.AppendPseudoLegalMovesForSide(nil, board.SideToMove)
+	for _, mv := range candidates {
+		piece := board.PieceAt(mv.From)
+		if piece.Type == None || piece.Color != board.SideToMove {
+			continue
+		}
+
+		ok, err := board.IsMoveLegal(piece, mv.From, mv.To, mv.Promotion)
+		if err == nil && ok {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// IsCheckMate reports whether the side to move is in checkmate.
+func (board *BoardState) IsCheckMate() (bool, error) {
+	inCheck, err := board.InCheck(board.SideToMove)
+	if err != nil {
+		return false, err
+	}
+	if !inCheck {
+		return false, nil
+	}
+
+	// Optimize: iterate only pseudo-legal candidates instead of scanning all 64 destination squares.
+	// We still require that the candidate resolves the check on SideToMove.
+	candidates := board.AppendPseudoLegalMovesForSide(nil, board.SideToMove)
+	for _, mv := range candidates {
+		piece := board.PieceAt(mv.From)
+		if piece.Type == None || piece.Color != board.SideToMove {
+			continue
+		}
+
+		// Promotion matters when escaping check (e.g., underpromotions that block/cover squares),
+		// so we must include the candidate's Promotion when evaluating.
+		if mv.Promotion != None {
+			undo, err := board.MakeMove(piece, mv.From, mv.To, mv.Promotion)
+			if err != nil {
+				continue
+			}
+			inCheck, chkErr := board.InCheck(piece.Color)
+			UndoMove(board, *undo)
+			if chkErr == nil && !inCheck {
+				return false, nil
+			}
+			continue
+		}
+
+		ok, err := board.DoesMoveResolveCheck(piece, mv.From, mv.To)
+		if err == nil && ok {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// DrawByInsufficentMaterial reports whether the game is a draw due to insufficient material (no checkmate possible).
+// This is a simplified version that only checks for the most common cases (king vs king, king and bishop vs king, king and knight vs king).
+// It does not handle more complex cases like opposite-colored bishops or multiple minor pieces.
+func (board *BoardState) DrawByInsufficentMaterial() bool {
+	whitePieces := []Piece{}
+	blackPieces := []Piece{}
+
+	for rank := 0; rank < 8; rank++ {
+		for file := 0; file < 8; file++ {
+			piece := board.ChessBoard[rank][file]
+			if piece.Type != None {
+				if piece.Color == White {
+					whitePieces = append(whitePieces, piece)
+				} else {
+					blackPieces = append(blackPieces, piece)
+				}
+			}
+		}
+	}
+
+	if len(whitePieces) == 1 && len(blackPieces) == 1 {
+		return true // King vs King
+	}
+
+	if len(whitePieces) == 2 && len(blackPieces) == 1 {
+		if (whitePieces[0].Type == King && whitePieces[1].Type == Bishop) || (whitePieces[0].Type == Bishop && whitePieces[1].Type == King) {
+			return true // King and Bishop vs King
+		}
+		if (whitePieces[0].Type == King && whitePieces[1].Type == Knight) || (whitePieces[0].Type == Knight && whitePieces[1].Type == King) {
+			return true // King and Knight vs King
+		}
+	}
+
+	if len(blackPieces) == 2 && len(whitePieces) == 1 {
+		if (blackPieces[0].Type == King && blackPieces[1].Type == Bishop) || (blackPieces[0].Type == Bishop && blackPieces[1].Type == King) {
+			return true // King and Bishop vs King
+		}
+		if (blackPieces[0].Type == King && blackPieces[1].Type == Knight) || (blackPieces[0].Type == Knight && blackPieces[1].Type == King) {
+			return true // King and Knight vs King
+		}
+	}
+
+	return false
+}
+
+// DrawByRepetition reports whether the current position has occurred three or more times.
+//
+// Note: threefold repetition requires tracking historic positions. The engine currently
+// does not store position-history internally, so this helper is a stub API that always
+// returns false. It exists to keep draw detection logic engine-owned rather than
+// depending on the TUI's move log types.
+func (board *BoardState) DrawByRepetition() bool {
+	return false
+}
+
+// IsMoveLegal reports whether a move by piece from->to is legal according to piece movement rules and king safety.
+//
+// It uses TryMove to avoid recursive evaluation through MakeMove.
+func (board *BoardState) IsMoveLegal(piece Piece, from Square, to Square, promotionType PieceType) (bool, error) {
+	undo, err := board.TryMove(piece, from, to, promotionType)
+	if err != nil {
+		return false, nil
+	}
+	defer UndoMove(board, *undo)
+
+	inCheck, err := board.InCheck(piece.Color)
+	if err != nil {
+		return false, err
+	}
+	return !inCheck, nil
 }
 
 // IsSquareAttacked reports whether target is attacked by any piece of ThreatColor.

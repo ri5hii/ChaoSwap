@@ -48,3 +48,12 @@ func (square Square) Equals(other Square) bool {
 
 // Board stores pieces indexed by [rank][file].
 type Board [8][8]Piece
+
+type GameState int
+
+const (
+	Ongoing GameState = iota
+	StaleMate
+	CheckMate
+	Draw
+)

@@ -8,6 +8,11 @@ import (
 	app "github.com/ri5hii/ChaoSwap/tui/app"
 )
 
+// main is the CLI entrypoint for the ChaoSwap binary.
+//
+// This command routes subcommands to either the Bubble Tea TUI (`start`) or to
+// informational output (`help`, `description`). The TUI itself is implemented
+// under `tui/app`.
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
@@ -28,6 +33,7 @@ func main() {
 	}
 }
 
+// startGame launches the interactive Bubble Tea TUI.
 func startGame() {
 	program := tea.NewProgram(app.NewModel())
 	_, err := program.Run()
@@ -36,8 +42,10 @@ func startGame() {
 	}
 }
 
+// printHelp prints CLI usage and available subcommands.
 func printHelp() {
-	fmt.Print(`ChaoSwap
+	fmt.Print(`
+ChaoSwap:
 
 Usage:
   chaoSwap <command>
@@ -49,8 +57,10 @@ Commands:
 `)
 }
 
+// printDescription prints a short, user-facing description of the game and its input conventions.
 func printDescription() {
-	fmt.Print(`ChaoSwap
+	fmt.Print(`
+ChaoSwap: A chess variant where players can swap one of their pieces with an opponent's piece instead of making a normal move.
 
 ChaoSwap provides a chess TUI with two modes:
 
@@ -60,6 +70,6 @@ ChaoSwap provides a chess TUI with two modes:
 TUI Tips:
   - Commands start with ':' (e.g. :help, :quit, :normal, :chaos, :description).
   - Moves use coordinate notation (e.g. e2e4).
-  - Promotions can be specified with a suffix: e7e8q (or r/b/n).
+  - Promotions should be specified with a suffix: e7e8q (or r/b/n).
 `)
 }

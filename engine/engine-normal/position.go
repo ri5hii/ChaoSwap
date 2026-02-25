@@ -8,6 +8,7 @@ type BoardState struct {
 	SideToMove      PieceColor
 	CastlingRights  uint8
 	EnPassantSquare Square
+	GameState       GameState
 }
 
 const (
