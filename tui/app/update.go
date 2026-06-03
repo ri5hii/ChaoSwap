@@ -358,10 +358,10 @@ func (model *Model) PromotionInputWithoutSuffix(notation string) bool {
 		return false
 	}
 
-	if piece.Color == engine.White && toSquare.Rank == 0 {
+	if piece.Color == engine.White && toSquare.Rank == 7 {
 		return true
 	}
-	if piece.Color == engine.Black && toSquare.Rank == 7 {
+	if piece.Color == engine.Black && toSquare.Rank == 0 {
 		return true
 	}
 

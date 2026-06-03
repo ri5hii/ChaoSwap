@@ -70,13 +70,13 @@ func (board *BoardState) AppendPseudoLegalMovesForPiece(dst []MoveCandidate, pie
 }
 
 func (board *BoardState) appendPawnPseudoMoves(dst []MoveCandidate, piece Piece, from Square) []MoveCandidate {
-	dir := -1
-	startRank := 6
-	promoRank := 0
+	dir := 1
+	startRank := 1
+	promoRank := 7
 	if piece.Color == Black {
-		dir = 1
-		startRank = 1
-		promoRank = 7
+		dir = -1
+		startRank = 6
+		promoRank = 0
 	}
 
 	one := Square{File: from.File, Rank: from.Rank + dir}
@@ -186,23 +186,23 @@ func (board *BoardState) appendKingPseudoMoves(dst []MoveCandidate, piece Piece,
 	}
 
 	// Castling candidates are included as pseudo-legal moves; final legality is checked later.
-	// White king starts at e1 -> (4,7) in this engine's coordinate system.
-	// Black king starts at e8 -> (4,0).
-	if piece.Color == White && from.File == 4 && from.Rank == 7 {
+	// White king starts at e1 -> (4,0).
+	// Black king starts at e8 -> (4,7).
+	if piece.Color == White && from.File == 4 && from.Rank == 0 {
 		if (board.CastlingRights & WhiteKingSide) != 0 {
-			dst = append(dst, MoveCandidate{From: from, To: Square{File: 6, Rank: 7}, Promotion: None})
+			dst = append(dst, MoveCandidate{From: from, To: Square{File: 6, Rank: 0}, Promotion: None})
 		}
 		if (board.CastlingRights & WhiteQueenSide) != 0 {
-			dst = append(dst, MoveCandidate{From: from, To: Square{File: 2, Rank: 7}, Promotion: None})
+			dst = append(dst, MoveCandidate{From: from, To: Square{File: 2, Rank: 0}, Promotion: None})
 		}
 	}
 
-	if piece.Color == Black && from.File == 4 && from.Rank == 0 {
+	if piece.Color == Black && from.File == 4 && from.Rank == 7 {
 		if (board.CastlingRights & BlackKingSide) != 0 {
-			dst = append(dst, MoveCandidate{From: from, To: Square{File: 6, Rank: 0}, Promotion: None})
+			dst = append(dst, MoveCandidate{From: from, To: Square{File: 6, Rank: 7}, Promotion: None})
 		}
 		if (board.CastlingRights & BlackQueenSide) != 0 {
-			dst = append(dst, MoveCandidate{From: from, To: Square{File: 2, Rank: 0}, Promotion: None})
+			dst = append(dst, MoveCandidate{From: from, To: Square{File: 2, Rank: 7}, Promotion: None})
 		}
 	}
 
