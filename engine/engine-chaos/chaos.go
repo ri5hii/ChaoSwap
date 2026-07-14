@@ -197,5 +197,35 @@ func (s *State) UndoSwap(undo *UndoSwap) {
 	s.Base.SideToMove = undo.PrevSideToMove
 }
 
-func (s *State) PickSwapPair() {
+func (s *State) PickSwapPair() (Swap, bool) {
+	var squares []normal.Square
+	for r := 0; r < 8; r++ {
+		for f := 0; f < 8; f++ {
+			piece := s.Base.PieceAt(normal.Square{File: f, Rank: r})
+			if piece.Type != normal.None && piece.Color == s.Base.SideToMove {
+				squares = append(squares, normal.Square{File: f, Rank: r})
+			}
+		}
+	}
+
+	var legal []Swap
+	for i := 0; i < len(squares); i++ {
+		for j := i + 1; j < len(squares); j++ {
+			swap := Swap{
+				A: squares[i],
+				B: squares[j],
+			}
+			ok, err := s.IsLegalSwap(swap)
+			if ok && err == nil {
+				legal = append(legal, swap)
+			}
+		}
+	}
+
+	if len(legal) == 0 {
+		return Swap{}, false
+	}
+
+	pick := legal[s.RNG.IntN(len(legal))]
+	return pick, true
 }
