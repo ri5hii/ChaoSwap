@@ -48,6 +48,12 @@ type SummaryState struct {
 }
 
 // Model holds all state required by the Bubble Tea program.
+//
+// It stores:
+//   - the engine's board state
+//   - the Chaos engine state (for swap moves)
+//   - the current mode (Normal or Chaos)
+//   - input buffer, status text, move history, and end-of-game summary
 type Model struct {
 	board    *engineNormal.BoardState
 	chaos    *engineChaos.State

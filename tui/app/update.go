@@ -51,6 +51,9 @@ func (model *Model) Init() tea.Cmd {
 // the UI switches into `awaitingPromotion` and the next Enter is interpreted as a
 // promotion choice: 'q', 'r', 'b', or 'n'. This lets users type either `e7e8q`
 // directly or `e7e8` then choose interactively.
+//
+// Chaos mode:
+//   - Pressing S performs a random legal swap for the side to move.
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
 	case tea.KeyMsg:
@@ -101,6 +104,15 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
+// handleChaoSwap executes a random legal swap for the side to move in Chaos mode.
+//
+// It:
+//   - picks a random legal swap pair via PickSwapPair
+//   - applies it via TrySwap (shares the board pointer)
+//   - logs the swap in the move history
+//   - runs end-of-game detection (checkmate, stalemate, insufficient material)
+//
+// If no legal swap is available, it reports the failure without changing the board.
 func (model *Model) handleChaoSwap() (tea.Model, tea.Cmd) {
 	if model.summary.Active {
 		model.status = "Game over. Use :quit to exit."

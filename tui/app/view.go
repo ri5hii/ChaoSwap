@@ -14,6 +14,7 @@ import (
 //   - Current turn and selected mode.
 //   - Input prompt showing the current buffer.
 //   - Status line for errors and informational messages.
+//   - Hint line for Chaos mode instructions.
 //
 // Summary mode:
 // If `model.summary.Active` is true, View switches to a summary screen that displays the
@@ -200,6 +201,7 @@ func renderMoveLog(moves []MoveRecord, max int) []string {
 // formatLongAlgebraic renders a single `MoveRecord` using a long-algebraic-like format.
 //
 // The output is intentionally simple and stable for a TUI move list:
+//   - Swap "S(e4,h8)": returned directly from the Raw field
 //   - Castling: "O-O" or "O-O-O"
 //   - Otherwise: "<piece><from>< - or x ><to>[=<promotionPiece>]"
 func formatLongAlgebraic(m MoveRecord) string {
