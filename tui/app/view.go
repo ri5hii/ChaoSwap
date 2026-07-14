@@ -31,12 +31,14 @@ func (model *Model) View() string {
 	turnLine := fmt.Sprintf("Turn: %s | Mode: %s", sideToMoveString(model.board), model.mode)
 	inputLine := fmt.Sprintf("> Enter Move/Command: %s", model.input)
 	statusLine := fmt.Sprintf("Status: %s", model.status)
+	hintLine := "Note: Press :chaos to change mode and S for random swap. "
 
 	parts := []string{
 		strings.Join(top, "\n"),
 		turnLine,
 		inputLine,
 		statusLine,
+		hintLine,
 	}
 
 	return strings.Join(parts, "\n") + "\n"
