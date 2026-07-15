@@ -1,4 +1,5 @@
- package engine
+// Package engine implements the Chaos Chess (Swap Variant) engine.
+package engine
 
 import (
 	"math/rand/v2"
@@ -7,13 +8,11 @@ import (
 	normal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
-// Package engine implements the Chaos Chess (Swap Variant) engine.
-//
 // Chaos Chess is a variant where the side to move may optionally perform
 // a random legal swap of two friendly pieces instead of a standard chess move.
 // Swaps toggle the side to move, clear en passant, and may revoke castling rights
 // when a rook leaves its starting corner.
-//
+
 // Swap contains the details of a piece swap between two squares.
 // It is used to record the swap action for move history and potential undo functionality.
 type Swap struct {
