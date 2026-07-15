@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	engine "github.com/ri5hii/ChaoSwap/engine/engine-normal"
+	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
 // View renders the full screen for the Bubble Tea TUI.
@@ -14,6 +14,7 @@ import (
 //   - Current turn and selected mode.
 //   - Input prompt showing the current buffer.
 //   - Status line for errors and informational messages.
+//   - Hint line for Chaos mode instructions.
 //
 // Summary mode:
 // If `model.summary.Active` is true, View switches to a summary screen that displays the
@@ -31,12 +32,14 @@ func (model *Model) View() string {
 	turnLine := fmt.Sprintf("Turn: %s | Mode: %s", sideToMoveString(model.board), model.mode)
 	inputLine := fmt.Sprintf("> Enter Move/Command: %s", model.input)
 	statusLine := fmt.Sprintf("Status: %s", model.status)
+	hintLine := "Note: Press :chaos to change mode and S for random swap. "
 
 	parts := []string{
 		strings.Join(top, "\n"),
 		turnLine,
 		inputLine,
 		statusLine,
+		hintLine,
 	}
 
 	return strings.Join(parts, "\n") + "\n"
@@ -89,11 +92,11 @@ func (model *Model) viewSummary() string {
 }
 
 // sideToMoveString turns engine turn state into a user-facing label.
-func sideToMoveString(board *engine.BoardState) string {
+func sideToMoveString(board *engineNormal.BoardState) string {
 	if board == nil {
 		return "?"
 	}
-	if board.SideToMove == engine.White {
+	if board.SideToMove == engineNormal.White {
 		return "White"
 	}
 	return "Black"
@@ -104,7 +107,7 @@ func sideToMoveString(board *engine.BoardState) string {
 // Invariant:
 //   - The engine board is indexed [rank][file], where rank increases from '1' to '8'.
 //   - This renderer prints ranks from 8 down to 1, matching standard chess diagrams.
-func renderBoard(board *engine.BoardState) []string {
+func renderBoard(board *engineNormal.BoardState) []string {
 	if board == nil {
 		return []string{
 			"8 . . . . . . . .",
@@ -127,7 +130,7 @@ func renderBoard(board *engine.BoardState) []string {
 
 		for file := 0; file <= 7; file++ {
 			p := board.ChessBoard[rank][file]
-			b.WriteString(engine.PieceIcon(p))
+			b.WriteString(engineNormal.PieceIcon(p))
 			b.WriteString(" ")
 		}
 		lines = append(lines, b.String())
@@ -166,7 +169,7 @@ func renderMoveLog(moves []MoveRecord, max int) []string {
 
 	// Keep the log aligned to "White, Black" pairs. If the first visible ply is
 	// Black, drop it rather than printing a partial line.
-	if len(visible) > 0 && visible[0].Side == engine.Black {
+	if len(visible) > 0 && visible[0].Side == engineNormal.Black {
 		visible = visible[1:]
 	}
 
@@ -198,9 +201,14 @@ func renderMoveLog(moves []MoveRecord, max int) []string {
 // formatLongAlgebraic renders a single `MoveRecord` using a long-algebraic-like format.
 //
 // The output is intentionally simple and stable for a TUI move list:
+//   - Swap "S(e4,h8)": returned directly from the Raw field
 //   - Castling: "O-O" or "O-O-O"
 //   - Otherwise: "<piece><from>< - or x ><to>[=<promotionPiece>]"
 func formatLongAlgebraic(m MoveRecord) string {
+	if len(m.Raw) >= 2 && m.Raw[:2] == "S(" {
+		return m.Raw
+	}
+
 	if m.IsCastleKingSide {
 		return "O-O"
 	}
@@ -208,9 +216,9 @@ func formatLongAlgebraic(m MoveRecord) string {
 		return "O-O-O"
 	}
 
-	pieceIcon := engine.PieceIcon(engine.Piece{Type: m.PieceType, Color: m.Side})
-	from := engine.SquareNotation(m.From)
-	to := engine.SquareNotation(m.To)
+	pieceIcon := engineNormal.PieceIcon(engineNormal.Piece{Type: m.PieceType, Color: m.Side})
+	from := engineNormal.SquareNotation(m.From)
+	to := engineNormal.SquareNotation(m.To)
 
 	sep := "-"
 	if m.IsCapture {
@@ -219,8 +227,8 @@ func formatLongAlgebraic(m MoveRecord) string {
 
 	s := pieceIcon + from + sep + to
 
-	if m.Promotion != engine.None {
-		s += "=" + engine.PieceIcon(engine.Piece{Type: m.Promotion, Color: m.Side})
+	if m.Promotion != engineNormal.None {
+		s += "=" + engineNormal.PieceIcon(engineNormal.Piece{Type: m.Promotion, Color: m.Side})
 	}
 
 	return s

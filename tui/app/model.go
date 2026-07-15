@@ -1,7 +1,8 @@
 package app
 
 import (
-	engine "github.com/ri5hii/ChaoSwap/engine/engine-normal"
+	engineChaos "github.com/ri5hii/ChaoSwap/engine/engine-chaos"
+	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
 // MoveRecord captures a single played ply in a UI-friendly form.
@@ -13,17 +14,17 @@ import (
 // rendered consistently even if the engine state later changes (e.g., after undo).
 type MoveRecord struct {
 	Ply       int
-	Side      engine.PieceColor
-	PieceType engine.PieceType
-	From      engine.Square
-	To        engine.Square
+	Side      engineNormal.PieceColor
+	PieceType engineNormal.PieceType
+	From      engineNormal.Square
+	To        engineNormal.Square
 
 	IsCapture bool
 
 	IsCastleKingSide  bool
 	IsCastleQueenSide bool
 
-	Promotion engine.PieceType
+	Promotion engineNormal.PieceType
 	Raw       string
 }
 
@@ -31,7 +32,7 @@ type MoveRecord struct {
 //
 // Why: after the game ends (checkmate/stalemate/draw), we want to present a stable
 // summary and optionally allow navigation through the move history without mutating
-// the live engine position.
+// the live position.
 type SummaryState struct {
 	Active bool
 
@@ -47,8 +48,15 @@ type SummaryState struct {
 }
 
 // Model holds all state required by the Bubble Tea program.
+//
+// It stores:
+//   - the engine's board state
+//   - the Chaos engine state (for swap moves)
+//   - the current mode (Normal or Chaos)
+//   - input buffer, status text, move history, and end-of-game summary
 type Model struct {
-	board    *engine.BoardState
+	board    *engineNormal.BoardState
+	chaos    *engineChaos.State
 	mode     string
 	input    string
 	status   string
@@ -56,8 +64,8 @@ type Model struct {
 	quitting bool
 
 	awaitingPromotion bool
-	promotionFrom     engine.Square
-	promotionTo       engine.Square
+	promotionFrom     engineNormal.Square
+	promotionTo       engineNormal.Square
 
 	// summary holds UI state for presenting a post-game summary and history navigation.
 	summary SummaryState

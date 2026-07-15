@@ -95,20 +95,20 @@ func mustRejectMakeMove(t *testing.T, b *engine.BoardState, from, to engine.Squa
 }
 
 func placeBareKings(b *engine.BoardState) {
-	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.White})
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.White})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.Black})
 }
 
 func TestTryMoveDoesNotEnforceKingSafetyButMakeMoveDoes(t *testing.T) {
 	b := engine.NewEmptyPosition()
 	placeBareKings(b)
 
-	// Put a black rook giving check along the e-file to white king on e1 (engine coords e1 == (4,7)).
+	// Put a black rook giving check along the e-file to white king on e1 (engine coords e1 == (4,0)).
 	b.SetPiece(sq2(4, 5), engine.Piece{Type: engine.Rook, Color: engine.Black})
 
 	// White pawn move that does not resolve check.
-	from := sq2(0, 6)
-	to := sq2(0, 5)
+	from := sq2(0, 1)
+	to := sq2(0, 2)
 	b.SetPiece(from, engine.Piece{Type: engine.Pawn, Color: engine.White})
 	b.SideToMove = engine.White
 
@@ -133,9 +133,9 @@ func TestMakeMoveRejectsMovingPinnedPiece(t *testing.T) {
 	placeBareKings(b)
 
 	// White king e1, white rook e2 pinned by black rook e8.
-	wKing := sq2(4, 7)
-	wRook := sq2(4, 6)
-	bRook := sq2(4, 0)
+	wKing := sq2(4, 0)
+	wRook := sq2(4, 1)
+	bRook := sq2(4, 7)
 
 	b.SetPiece(wKing, engine.Piece{Type: engine.King, Color: engine.White})
 	b.SetPiece(wRook, engine.Piece{Type: engine.Rook, Color: engine.White})
@@ -145,7 +145,7 @@ func TestMakeMoveRejectsMovingPinnedPiece(t *testing.T) {
 	b.SideToMove = engine.White
 
 	// Attempt to move pinned rook away: e2 -> f2 should be illegal as it exposes king to rook.
-	mustRejectMakeMove(t, b, wRook, sq2(5, 6), engine.None)
+	mustRejectMakeMove(t, b, wRook, sq2(5, 1), engine.None)
 }
 
 func TestUndoRestoresAfterCastlingKingSide(t *testing.T) {
@@ -154,13 +154,13 @@ func TestUndoRestoresAfterCastlingKingSide(t *testing.T) {
 	b.CastlingRights = engine.WhiteKingSide | engine.WhiteQueenSide
 
 	// White pieces for castling.
-	kingFrom := sq2(4, 7) // e1
-	rookFrom := sq2(7, 7) // h1
-	kingTo := sq2(6, 7)   // g1
+	kingFrom := sq2(4, 0) // e1
+	rookFrom := sq2(7, 0) // h1
+	kingTo := sq2(6, 0)   // g1
 
 	b.SetPiece(kingFrom, engine.Piece{Type: engine.King, Color: engine.White})
 	b.SetPiece(rookFrom, engine.Piece{Type: engine.Rook, Color: engine.White})
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.Black})
 
 	before := cloneBoard(b)
 	u := mustMakeMovePromo(t, b, kingFrom, kingTo, engine.None)
@@ -177,11 +177,11 @@ func TestUndoRestoresAfterEnPassant(t *testing.T) {
 	b := engine.NewEmptyPosition()
 	placeBareKings(b)
 
-	// White pawn on e5, black pawn on d5, EP target at d6? (engine ranks: white forward is -1).
-	// Existing engine_test uses: white pawn (4,3) captures to (3,2) with EP target (3,2).
-	whitePawnFrom := sq2(4, 3)
-	blackPawnOn := sq2(3, 3)
-	epTo := sq2(3, 2)
+	// White pawn on e4, black pawn on d5, EP target at d6? (engine ranks: white forward is +1).
+	// Existing engine_test uses: white pawn (4,4) captures to (3,5) with EP target (3,5).
+	whitePawnFrom := sq2(4, 4)
+	blackPawnOn := sq2(3, 4)
+	epTo := sq2(3, 5)
 
 	b.SetPiece(whitePawnFrom, engine.Piece{Type: engine.Pawn, Color: engine.White})
 	b.SetPiece(blackPawnOn, engine.Piece{Type: engine.Pawn, Color: engine.Black})
@@ -206,9 +206,9 @@ func TestUndoRestoresAfterPromotionToKnight(t *testing.T) {
 	b := engine.NewEmptyPosition()
 	placeBareKings(b)
 
-	// White pawn one step from promotion. In this engine, white promotes on rank 0.
-	from := sq2(0, 1)
-	to := sq2(0, 0)
+	// White pawn one step from promotion. In this engine, white promotes on rank 7.
+	from := sq2(0, 6)
+	to := sq2(0, 7)
 
 	b.SetPiece(from, engine.Piece{Type: engine.Pawn, Color: engine.White})
 	b.SideToMove = engine.White
@@ -242,8 +242,8 @@ func TestPromotionToRookBishopQueenAllWorkAndUndoRestores(t *testing.T) {
 			b := engine.NewEmptyPosition()
 			placeBareKings(b)
 
-			from := sq2(0, 1)
-			to := sq2(0, 0)
+			from := sq2(0, 6)
+			to := sq2(0, 7)
 
 			b.SetPiece(from, engine.Piece{Type: engine.Pawn, Color: engine.White})
 			b.SideToMove = engine.White
@@ -265,8 +265,8 @@ func TestPromotionCapturePromotionUndo(t *testing.T) {
 	placeBareKings(b)
 
 	// White pawn captures on last rank and promotes.
-	from := sq2(0, 1)
-	to := sq2(1, 0)
+	from := sq2(0, 6)
+	to := sq2(1, 7)
 
 	b.SetPiece(from, engine.Piece{Type: engine.Pawn, Color: engine.White})
 	b.SetPiece(to, engine.Piece{Type: engine.Rook, Color: engine.Black})
@@ -286,26 +286,26 @@ func TestIllegalKingMoveIntoCheckRejected(t *testing.T) {
 	b := engine.NewEmptyPosition()
 
 	// White king e1.
-	wk := sq2(4, 7)
+	wk := sq2(4, 0)
 	b.SetPiece(wk, engine.Piece{Type: engine.King, Color: engine.White})
 	// Black king somewhere safe.
-	b.SetPiece(sq2(0, 0), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(0, 7), engine.Piece{Type: engine.King, Color: engine.Black})
 	// Black rook attacks e-file squares.
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.Rook, Color: engine.Black})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.Rook, Color: engine.Black})
 
 	b.SideToMove = engine.White
 
 	// King tries to move along file into rook attack (e1 -> e2).
-	mustRejectMakeMove(t, b, wk, sq2(4, 6), engine.None)
+	mustRejectMakeMove(t, b, wk, sq2(4, 1), engine.None)
 }
 
 func TestIsCheckMateAndIsStaleMateNotBothTrue(t *testing.T) {
 	b := engine.NewEmptyPosition()
-	b.SetPiece(sq2(7, 7), engine.Piece{Type: engine.King, Color: engine.White})
-	b.SetPiece(sq2(0, 0), engine.Piece{Type: engine.King, Color: engine.Black})
-	b.SetPiece(sq2(6, 7), engine.Piece{Type: engine.Rook, Color: engine.Black})
-	b.SetPiece(sq2(7, 6), engine.Piece{Type: engine.Rook, Color: engine.Black})
-	b.SetPiece(sq2(6, 6), engine.Piece{Type: engine.Queen, Color: engine.Black})
+	b.SetPiece(sq2(7, 0), engine.Piece{Type: engine.King, Color: engine.White})
+	b.SetPiece(sq2(0, 7), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(6, 0), engine.Piece{Type: engine.Rook, Color: engine.Black})
+	b.SetPiece(sq2(7, 1), engine.Piece{Type: engine.Rook, Color: engine.Black})
+	b.SetPiece(sq2(6, 1), engine.Piece{Type: engine.Queen, Color: engine.Black})
 	b.SideToMove = engine.White
 
 	mate, err := b.IsCheckMate()
@@ -328,10 +328,9 @@ func TestIsStaleMateBasic(t *testing.T) {
 	b := engine.NewEmptyPosition()
 
 	// Classic stalemate: White king a1 trapped by black queen and king.
-	b.SetPiece(sq2(0, 7), engine.Piece{Type: engine.King, Color: engine.White})
-	b.SetPiece(sq2(7, 0), engine.Piece{Type: engine.King, Color: engine.Black})
-	b.SetPiece(sq2(1, 5), engine.Piece{Type: engine.Queen, Color: engine.Black})
-	b.SetPiece(sq2(2, 6), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(0, 0), engine.Piece{Type: engine.King, Color: engine.White})
+	b.SetPiece(sq2(2, 1), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(1, 2), engine.Piece{Type: engine.Queen, Color: engine.Black})
 	b.SideToMove = engine.White
 
 	inCheck, err := b.InCheck(engine.White)
@@ -364,8 +363,8 @@ func TestCastlingRightsClearedWhenRookMovesAndUndoRestores(t *testing.T) {
 	placeBareKings(b)
 
 	// Place white rook on a1 and allow castling rights initially.
-	rookFrom := sq2(0, 7)
-	rookTo := sq2(0, 6)
+	rookFrom := sq2(0, 0)
+	rookTo := sq2(0, 1)
 	b.SetPiece(rookFrom, engine.Piece{Type: engine.Rook, Color: engine.White})
 	b.CastlingRights = engine.WhiteKingSide | engine.WhiteQueenSide | engine.BlackKingSide | engine.BlackQueenSide
 	b.SideToMove = engine.White
@@ -385,13 +384,13 @@ func TestEnPassantClearsWhenNotUsedNextPly(t *testing.T) {
 	b := engine.NewGamePosition()
 
 	// White: e2e4 (double push sets EP square)
-	u1 := mustMakeMovePromo(t, b, sq2(4, 6), sq2(4, 4), engine.None)
+	u1 := mustMakeMovePromo(t, b, sq2(4, 1), sq2(4, 3), engine.None)
 	if !b.EnPassantSquare.IsValid() {
 		t.Fatalf("expected en passant square set after double pawn push")
 	}
 
 	// Black plays a non-EP move: a7a6, which should clear EP target in MakeMove if unchanged.
-	u2 := mustMakeMovePromo(t, b, sq2(0, 1), sq2(0, 2), engine.None)
+	u2 := mustMakeMovePromo(t, b, sq2(0, 6), sq2(0, 5), engine.None)
 	if b.EnPassantSquare.IsValid() {
 		t.Fatalf("expected en passant square cleared after a non-EP response move")
 	}
@@ -410,13 +409,13 @@ func TestCastlingIllegalWhileInCheck(t *testing.T) {
 	b.SideToMove = engine.White
 	b.CastlingRights = engine.WhiteKingSide
 
-	kingFrom := sq2(4, 7) // e1
-	rookFrom := sq2(7, 7) // h1
-	kingTo := sq2(6, 7)   // g1
+	kingFrom := sq2(4, 0) // e1
+	rookFrom := sq2(7, 0) // h1
+	kingTo := sq2(6, 0)   // g1
 
 	b.SetPiece(kingFrom, engine.Piece{Type: engine.King, Color: engine.White})
 	b.SetPiece(rookFrom, engine.Piece{Type: engine.Rook, Color: engine.White})
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.Black})
 
 	// Put white king in check (rook on e-file).
 	b.SetPiece(sq2(4, 5), engine.Piece{Type: engine.Rook, Color: engine.Black})
@@ -429,16 +428,16 @@ func TestCastlingIllegalIntoCheck(t *testing.T) {
 	b.SideToMove = engine.White
 	b.CastlingRights = engine.WhiteKingSide
 
-	kingFrom := sq2(4, 7) // e1
-	rookFrom := sq2(7, 7) // h1
-	kingTo := sq2(6, 7)   // g1
+	kingFrom := sq2(4, 0) // e1
+	rookFrom := sq2(7, 0) // h1
+	kingTo := sq2(6, 0)   // g1
 
 	b.SetPiece(kingFrom, engine.Piece{Type: engine.King, Color: engine.White})
 	b.SetPiece(rookFrom, engine.Piece{Type: engine.Rook, Color: engine.White})
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.Black})
 
 	// Attack the destination square g1 with a black rook on g8.
-	b.SetPiece(sq2(6, 0), engine.Piece{Type: engine.Rook, Color: engine.Black})
+	b.SetPiece(sq2(6, 7), engine.Piece{Type: engine.Rook, Color: engine.Black})
 
 	mustRejectMakeMove(t, b, kingFrom, kingTo, engine.None)
 }
@@ -448,13 +447,13 @@ func TestCastlingQueenSideAndUndoRestores(t *testing.T) {
 	b.SideToMove = engine.White
 	b.CastlingRights = engine.WhiteQueenSide
 
-	kingFrom := sq2(4, 7) // e1
-	rookFrom := sq2(0, 7) // a1
-	kingTo := sq2(2, 7)   // c1
+	kingFrom := sq2(4, 0) // e1
+	rookFrom := sq2(0, 0) // a1
+	kingTo := sq2(2, 0)   // c1
 
 	b.SetPiece(kingFrom, engine.Piece{Type: engine.King, Color: engine.White})
 	b.SetPiece(rookFrom, engine.Piece{Type: engine.Rook, Color: engine.White})
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.Black})
 
 	before := cloneBoard(b)
 	u := mustMakeMovePromo(t, b, kingFrom, kingTo, engine.None)
@@ -471,12 +470,12 @@ func TestCastlingRightsClearedWhenCornerRookCaptured(t *testing.T) {
 	placeBareKings(b)
 
 	// White rook on h1 with rights; black bishop captures it.
-	rookSq := sq2(7, 7) // h1
+	rookSq := sq2(7, 0) // h1
 	b.SetPiece(rookSq, engine.Piece{Type: engine.Rook, Color: engine.White})
 	b.CastlingRights = engine.WhiteKingSide | engine.WhiteQueenSide | engine.BlackKingSide | engine.BlackQueenSide
 
 	// Put a black bishop on g2 that can capture h1 (diagonal).
-	attacker := sq2(6, 6)
+	attacker := sq2(6, 1)
 	b.SetPiece(attacker, engine.Piece{Type: engine.Bishop, Color: engine.Black})
 
 	b.SideToMove = engine.Black
@@ -500,21 +499,21 @@ func TestEnPassantCaptureThatExposesOwnKingIsRejected(t *testing.T) {
 
 	// Arrange a position where white pawn capturing en passant would open a rook attack to the king.
 	//
-	// White king on e1, black rook on e8 along the e-file. White pawn on e5 blocks the file.
-	// EP target on d6 allows e5xd6 ep, which would vacate the e-file and expose the king to the rook.
+	// White king on e1, black rook on e8 along the e-file. White pawn on e4 blocks the file.
+	// EP target on d6 allows e4xd6 ep, which would vacate the e-file and expose the king to the rook.
 	//
-	// Using engine's coordinate system: king e1 == (4,7), black rook e8 == (4,0), pawn e5 == (4,3),
-	// EP destination d6 == (3,2), captured pawn on d5 == (3,3).
-	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.King, Color: engine.White})
-	b.SetPiece(sq2(0, 0), engine.Piece{Type: engine.King, Color: engine.Black})
-	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.Rook, Color: engine.Black})
+	// Using engine's coordinate system: king e1 == (4,0), black rook e8 == (4,7), pawn e4 == (4,3),
+	// EP destination d6 == (3,5), captured pawn on d5 == (3,4).
+	b.SetPiece(sq2(4, 0), engine.Piece{Type: engine.King, Color: engine.White})
+	b.SetPiece(sq2(0, 7), engine.Piece{Type: engine.King, Color: engine.Black})
+	b.SetPiece(sq2(4, 7), engine.Piece{Type: engine.Rook, Color: engine.Black})
 	b.SetPiece(sq2(4, 3), engine.Piece{Type: engine.Pawn, Color: engine.White})
-	b.SetPiece(sq2(3, 3), engine.Piece{Type: engine.Pawn, Color: engine.Black})
-	b.EnPassantSquare = sq2(3, 2)
+	b.SetPiece(sq2(3, 4), engine.Piece{Type: engine.Pawn, Color: engine.Black})
+	b.EnPassantSquare = sq2(3, 5)
 	b.SideToMove = engine.White
 
 	// En passant capture should be rejected due to self-check exposure.
-	mustRejectMakeMove(t, b, sq2(4, 3), sq2(3, 2), engine.None)
+	mustRejectMakeMove(t, b, sq2(4, 3), sq2(3, 5), engine.None)
 }
 
 func TestParserIsMoveNotationValidCases(t *testing.T) {

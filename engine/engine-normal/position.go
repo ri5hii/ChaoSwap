@@ -33,10 +33,10 @@ func NewGamePosition() *BoardState {
 
 	backRank := []PieceType{Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook}
 	for file := 0; file <= 7; file++ {
-		board.SetPiece(Square{File: file, Rank: 0}, Piece{Type: backRank[file], Color: Black})
-		board.SetPiece(Square{File: file, Rank: 1}, Piece{Type: Pawn, Color: Black})
-		board.SetPiece(Square{File: file, Rank: 6}, Piece{Type: Pawn, Color: White})
-		board.SetPiece(Square{File: file, Rank: 7}, Piece{Type: backRank[file], Color: White})
+		board.SetPiece(Square{File: file, Rank: 0}, Piece{Type: backRank[file], Color: White})
+		board.SetPiece(Square{File: file, Rank: 1}, Piece{Type: Pawn, Color: White})
+		board.SetPiece(Square{File: file, Rank: 6}, Piece{Type: Pawn, Color: Black})
+		board.SetPiece(Square{File: file, Rank: 7}, Piece{Type: backRank[file], Color: Black})
 	}
 
 	return board

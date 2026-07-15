@@ -198,9 +198,9 @@ func (board *BoardState) handlePawnMove(piece Piece, from Square, to Square, und
 	target := board.PieceAt(to)
 
 	if absoluteFileDiff == 1 && to.Equals(board.EnPassantSquare) {
-		capRank := to.Rank + 1
+		capRank := to.Rank - 1
 		if piece.Color == Black {
-			capRank = to.Rank - 1
+			capRank = to.Rank + 1
 		}
 		board.SetPiece(Square{File: to.File, Rank: capRank}, Piece{Type: None})
 		board.SetPiece(to, piece)
@@ -209,15 +209,15 @@ func (board *BoardState) handlePawnMove(piece Piece, from Square, to Square, und
 	}
 
 	if piece.Color == White {
-		if fileDiff == 0 && rankDiff == -1 && target.Type == None {
+		if fileDiff == 0 && rankDiff == 1 && target.Type == None {
 			board.SetPiece(to, piece)
 			board.SetPiece(from, Piece{Type: None})
-		} else if fileDiff == 0 && rankDiff == -2 && from.Rank == 6 && board.PieceAt(Square{File: from.File, Rank: 5}).Type == None && target.Type == None {
-			board.EnPassantSquare = Square{File: from.File, Rank: 5}
+		} else if fileDiff == 0 && rankDiff == 2 && from.Rank == 1 && board.PieceAt(Square{File: from.File, Rank: 2}).Type == None && target.Type == None {
+			board.EnPassantSquare = Square{File: from.File, Rank: 2}
 			board.SetPiece(to, piece)
 			board.SetPiece(from, Piece{Type: None})
-		} else if absoluteFileDiff == 1 && rankDiff == -1 && target.Type != None {
-			if to.Rank == 0 && target.Type == Rook {
+		} else if absoluteFileDiff == 1 && rankDiff == 1 && target.Type != None {
+			if to.Rank == 7 && target.Type == Rook {
 				board.UpdateRookCastlingRights(from, to, piece)
 			}
 			board.SetPiece(to, piece)
@@ -226,7 +226,7 @@ func (board *BoardState) handlePawnMove(piece Piece, from Square, to Square, und
 			return false, fmt.Errorf("Invalid move for white pawn.")
 		}
 
-		if to.Rank == 0 {
+		if to.Rank == 7 {
 			promo := Queen
 			if undo != nil && undo.PromotedTo != None {
 				promo = undo.PromotedTo
@@ -247,15 +247,15 @@ func (board *BoardState) handlePawnMove(piece Piece, from Square, to Square, und
 		return true, nil
 	}
 
-	if fileDiff == 0 && rankDiff == 1 && target.Type == None {
+	if fileDiff == 0 && rankDiff == -1 && target.Type == None {
 		board.SetPiece(to, piece)
 		board.SetPiece(from, Piece{Type: None})
-	} else if fileDiff == 0 && rankDiff == 2 && from.Rank == 1 && board.PieceAt(Square{File: from.File, Rank: 2}).Type == None && target.Type == None {
-		board.EnPassantSquare = Square{File: from.File, Rank: 2}
+	} else if fileDiff == 0 && rankDiff == -2 && from.Rank == 6 && board.PieceAt(Square{File: from.File, Rank: 5}).Type == None && target.Type == None {
+		board.EnPassantSquare = Square{File: from.File, Rank: 5}
 		board.SetPiece(to, piece)
 		board.SetPiece(from, Piece{Type: None})
-	} else if absoluteFileDiff == 1 && rankDiff == 1 && target.Type != None {
-		if to.Rank == 7 && target.Type == Rook {
+	} else if absoluteFileDiff == 1 && rankDiff == -1 && target.Type != None {
+		if to.Rank == 0 && target.Type == Rook {
 			board.UpdateRookCastlingRights(from, to, piece)
 		}
 		board.SetPiece(to, piece)
@@ -264,7 +264,7 @@ func (board *BoardState) handlePawnMove(piece Piece, from Square, to Square, und
 		return false, fmt.Errorf("Invalid move for black pawn.")
 	}
 
-	if to.Rank == 7 {
+	if to.Rank == 0 {
 		promo := Queen
 		if undo != nil && undo.PromotedTo != None {
 			promo = undo.PromotedTo
@@ -453,13 +453,13 @@ func (board *BoardState) clearCastlingRights(color PieceColor) {
 func (board *BoardState) UpdateRookCastlingRights(from Square, to Square, piece Piece) {
 	if piece.Type == Rook {
 		switch {
-		case from.Equals(Square{0, 7}):
-			board.CastlingRights &^= WhiteQueenSide
-		case from.Equals(Square{7, 7}):
-			board.CastlingRights &^= WhiteKingSide
 		case from.Equals(Square{0, 0}):
-			board.CastlingRights &^= BlackQueenSide
+			board.CastlingRights &^= WhiteQueenSide
 		case from.Equals(Square{7, 0}):
+			board.CastlingRights &^= WhiteKingSide
+		case from.Equals(Square{0, 7}):
+			board.CastlingRights &^= BlackQueenSide
+		case from.Equals(Square{7, 7}):
 			board.CastlingRights &^= BlackKingSide
 		}
 	}
@@ -467,13 +467,13 @@ func (board *BoardState) UpdateRookCastlingRights(from Square, to Square, piece 
 	captured := board.PieceAt(to)
 	if captured.Type == Rook {
 		switch {
-		case to.Equals(Square{0, 7}):
-			board.CastlingRights &^= WhiteQueenSide
-		case to.Equals(Square{7, 7}):
-			board.CastlingRights &^= WhiteKingSide
 		case to.Equals(Square{0, 0}):
-			board.CastlingRights &^= BlackQueenSide
+			board.CastlingRights &^= WhiteQueenSide
 		case to.Equals(Square{7, 0}):
+			board.CastlingRights &^= WhiteKingSide
+		case to.Equals(Square{0, 7}):
+			board.CastlingRights &^= BlackQueenSide
+		case to.Equals(Square{7, 7}):
 			board.CastlingRights &^= BlackKingSide
 		}
 	}
@@ -504,9 +504,9 @@ func UndoMove(board *BoardState, undo Undo) {
 	if piece.Type == Pawn && undo.From.File != undo.To.File && undo.Captured.Type == None {
 		captureRank := undo.To.Rank
 		if piece.Color == White {
-			captureRank += 1
-		} else {
 			captureRank -= 1
+		} else {
+			captureRank += 1
 		}
 		board.SetPiece(Square{File: undo.To.File, Rank: captureRank}, Piece{Type: Pawn, Color: PieceColor(1 - piece.Color)})
 	}
