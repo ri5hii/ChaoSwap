@@ -57,3 +57,8 @@ Rank Indices:
 1  0 0 0 0 0 0 0 0
 
    a b c d e f g h
+   
+   
+   check mate validation
+   
+   

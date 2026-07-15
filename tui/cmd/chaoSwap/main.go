@@ -4,43 +4,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ri5hii/ChaoSwap/engine-normal/engine"
 	tea "github.com/charmbracelet/bubbletea"
+	app "github.com/ri5hii/ChaoSwap/tui/app"
 )
 
-func printDescription() {
-	fmt.Print(`ChaoSwap: 
-		
-		ChaoSwap offers a unique twist on traditional chess, providing players with new opportunities for creativity and tactical play.
-		
-		Rules:
-		1. The game is played on a standard 8x8 chessboard with the same pieces and initial setup as traditional chess.
-		2. Players take turns making moves, just like in regular chess.
-		3. However, instead of moving a piece to an empty square, players can choose to swap the positions of two random pieces of their own color.
-		4. The objective of the game remains the same: to checkmate the opponent's king.
-		
-		Modes:
-		1. Normal Mode: Players proceed to play the game as per the rules of traditional chess.
-		2. Chaos Mode: At the start of each turn, the player can choose to swap two random pieces of their own color instead of making a regular move.`)
-}
-
-func printHelp() {
-	fmt.Print(`ChaoSwap: 
-		
-		Usage:
-		ChaoSwap [command]
-		
-		Commands:
-		description - Print a description of the game and its rules.
-		start       - Start the game.
-		help        - Print this help message.`)
-}
-
-func startGame() {
-	// Create and run bubble tea model for the game here
-
-}
-
+// main is the CLI entrypoint for the ChaoSwap binary.
+//
+// This command routes subcommands to either the Bubble Tea TUI (`start`) or to
+// informational output (`help`, `description`). The TUI itself is implemented
+// under `tui/app`.
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
@@ -48,8 +20,7 @@ func main() {
 		return
 	}
 
-	cmd := args[0]
-	switch cmd {
+	switch args[0] {
 	case "description":
 		printDescription()
 	case "start":
@@ -57,10 +28,48 @@ func main() {
 	case "help":
 		printHelp()
 	default:
-		fmt.Printf("Unknown command: %s \n", cmd)
-		printDescription()
-		fmt.Print("\n")
+		fmt.Printf("Unknown command: %s\n\n", args[0])
 		printHelp()
 	}
+}
 
+// startGame launches the interactive Bubble Tea TUI.
+func startGame() {
+	program := tea.NewProgram(app.NewModel())
+	_, err := program.Run()
+	if err != nil {
+		fmt.Println("Error running the game:", err)
+	}
+}
+
+// printHelp prints CLI usage and available subcommands.
+func printHelp() {
+	fmt.Print(`
+ChaoSwap:
+
+Usage:
+  chaoSwap <command>
+
+Commands:
+  start        Start the TUI game.
+  description  Print a short description of the game.
+  help         Print this help text.
+`)
+}
+
+// printDescription prints a short, user-facing description of the game and its input conventions.
+func printDescription() {
+	fmt.Print(`
+ChaoSwap: A chess variant where players can swap one of their pieces with an opponent's piece instead of making a normal move.
+
+ChaoSwap provides a chess TUI with two modes:
+
+  Normal: Standard chess rules.
+  Chaos:  A twist mode (work in progress in this TUI).
+
+TUI Tips:
+  - Commands start with ':' (e.g. :help, :quit, :normal, :chaos, :description).
+  - Moves use coordinate notation (e.g. e2e4).
+  - Promotions should be specified with a suffix: e7e8q (or r/b/n).
+`)
 }
