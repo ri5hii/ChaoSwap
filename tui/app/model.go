@@ -6,7 +6,7 @@ import (
 )
 
 type Model struct {
-	chessboard *engineNormal.BoardState
+	chessBoard *engineNormal.BoardState
 	chaos      *engineChaos.State
 	mode       string
 	input      string
