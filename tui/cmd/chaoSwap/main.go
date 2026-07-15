@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	app "github.com/ri5hii/ChaoSwap/tui/app"
 )
 

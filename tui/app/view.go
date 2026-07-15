@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
@@ -19,7 +20,7 @@ import (
 // Summary mode:
 // If `model.summary.Active` is true, View switches to a summary screen that displays the
 // final result and the move list without accepting further moves.
-func (model *Model) View() string {
+func (model *Model) View() tea.View {
 	if model != nil && model.summary.Active {
 		return model.viewSummary()
 	}
@@ -42,7 +43,7 @@ func (model *Model) View() string {
 		hintLine,
 	}
 
-	return strings.Join(parts, "\n") + "\n"
+	return tea.NewView(strings.Join(parts, "\n") + "\n")
 }
 
 // viewSummary renders an end-of-game summary screen.
@@ -50,7 +51,7 @@ func (model *Model) View() string {
 // It reuses the standard board + move log layout, and adds a result banner plus a short
 // instruction footer. Navigation through historical positions is intentionally not
 // implemented here yet; the summary is a stable, read-only view.
-func (model *Model) viewSummary() string {
+func (model *Model) viewSummary() tea.View {
 	boardLines := renderBoard(model.board)
 	logLines := renderMoveLog(model.moveLog, 40)
 
@@ -88,7 +89,7 @@ func (model *Model) viewSummary() string {
 		out = append(out, p)
 	}
 
-	return strings.Join(out, "\n") + "\n"
+	return tea.NewView(strings.Join(out, "\n") + "\n")
 }
 
 // sideToMoveString turns engine turn state into a user-facing label.

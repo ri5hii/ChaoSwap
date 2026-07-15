@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	engineChaos "github.com/ri5hii/ChaoSwap/engine/engine-chaos"
 	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
@@ -56,13 +56,13 @@ func (model *Model) Init() tea.Cmd {
 //   - Pressing S performs a random legal swap for the side to move.
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+	case tea.KeyPressMsg:
+		switch {
+		case msg.String() == "ctrl+c":
 			model.quitting = true
 			return model, tea.Quit
 
-		case tea.KeyEnter:
+		case msg.String() == "enter":
 			raw := strings.TrimSpace(model.input)
 			parsed := engineNormal.ParseInput(raw)
 
@@ -84,18 +84,18 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 			return model.handleMoveInput(parsed)
 
-		case tea.KeyBackspace:
+		case msg.String() == "backspace":
 			if len(model.input) > 0 {
 				model.input = model.input[:len(model.input)-1]
 			}
 			return model, nil
 
 		default:
-			if len(msg.Runes) > 0 {
-				if model.mode == "Chaos" && (msg.Runes[0] == 's' || msg.Runes[0] == 'S') {
+			if msg.Text != "" {
+				if model.mode == "Chaos" && (msg.Text == "s" || msg.Text == "S") {
 					return model.handleChaoSwap()
 				}
-				model.input += string(msg.Runes)
+				model.input += msg.Text
 				return model, nil
 			}
 		}
