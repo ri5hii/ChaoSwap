@@ -24,6 +24,8 @@ type MoveRecord struct {
 	To        engineNormal.Square
 	From      engineNormal.Square
 
+	isSwap bool
+
 	Ply int
 
 	isCapture         bool

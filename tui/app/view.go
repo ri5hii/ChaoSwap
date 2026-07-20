@@ -83,6 +83,9 @@ func renderMoveLog(moves []MoveRecord) string {
 }
 
 func formatMoveRecord(m MoveRecord) string {
+	if m.isSwap {
+		return fmt.Sprintf("S(%s -> %s)", engineNormal.SquareNotation(m.From), engineNormal.SquareNotation(m.To))
+	}
 	return fmt.Sprintf("%c%c -> %c%c", m.From.File+'a', m.From.Rank+'1', m.To.File+'a', m.To.Rank+'1')
 }
 
