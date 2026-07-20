@@ -91,7 +91,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		default:
-			m.input += msg.Text
+			if len(m.input) < 5 {
+				m.input += msg.Text
+			}
 			return m, nil
 		}
 	}

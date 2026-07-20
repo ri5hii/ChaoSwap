@@ -44,6 +44,11 @@ func (m *Model) View() tea.View {
 
 	view := tea.NewView(screen)
 
+	cursorY := 36
+	cursorX := len("> Enter your move: " + m.input)
+	view.Cursor = tea.NewCursor(cursorX, cursorY)
+	view.Cursor.Blink = true
+
 	return view
 }
 
