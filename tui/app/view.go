@@ -4,94 +4,63 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
-// View renders the full screen for the Bubble Tea TUI.
-//
-// Layout (top to bottom):
-//   - Board (left) and move log (right), rendered side-by-side.
-//   - Current turn and selected mode.
-//   - Input prompt showing the current buffer.
-//   - Status line for errors and informational messages.
-//   - Hint line for Chaos mode instructions.
-//
-// Summary mode:
-// If `model.summary.Active` is true, View switches to a summary screen that displays the
-// final result and the move list without accepting further moves.
-func (model *Model) View() string {
-	if model != nil && model.summary.Active {
-		return model.viewSummary()
-	}
+var (
+	inputStyle  = lipgloss.NewStyle().Foreground(lipgloss.White)
+	modeStyle   = lipgloss.NewStyle().Foreground(lipgloss.White)
+	logStyle    = lipgloss.NewStyle().Foreground(lipgloss.White)
+	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.White)
+	helpStyle   = lipgloss.NewStyle().Foreground(lipgloss.White)
 
-	boardLines := renderBoard(model.board)
-	logLines := renderMoveLog(model.moveLog, 20)
+	// boardPad adds right-side padding between the board and the move log.
+	boardPad = lipgloss.NewStyle().PaddingRight(4)
 
-	top := BoardSideByMoveSide(boardLines, logLines, "   ")
+	placeholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	activeStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 
-	turnLine := fmt.Sprintf("Turn: %s | Mode: %s", sideToMoveString(model.board), model.mode)
-	inputLine := fmt.Sprintf("> Enter Move/Command: %s", model.input)
-	statusLine := fmt.Sprintf("Status: %s", model.status)
-	hintLine := "Note: Press :chaos to change mode and S for random swap. "
+	hasInput = false
+)
 
-	parts := []string{
-		strings.Join(top, "\n"),
-		turnLine,
-		inputLine,
-		statusLine,
-		hintLine,
-	}
+// View renders the full TUI screen: banner, board, move log, input line, mode indicator, status, and help text.
+func (m *Model) View() tea.View {
+	banner := ` ██████╗██╗  ██╗ █████╗  ██████╗ ███████╗██╗    ██╗ █████╗ ██████╗ 
+██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔════╝██║    ██║██╔══██╗██╔══██╗
+██║     ███████║███████║██║   ██║███████╗██║ █╗ ██║███████║██████╔╝
+██║     ██╔══██║██╔══██║██║   ██║╚════██║██║███╗██║██╔══██║██╔═══╝ 
+╚██████╗██║  ██║██║  ██║╚██████╔╝███████║╚███╔███╔╝██║  ██║██║     
+ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝     `
 
-	return strings.Join(parts, "\n") + "\n"
+	boardArea := renderBoard(m.chessBoard)
+	boardArea = boardPad.Render(boardArea)
+
+	MoveLog := renderMoveLog(m.moveLog)
+
+	inputLine := inputStyle.Render("> Enter your move: " + m.input + " ")
+	modeLine := modeStyle.Render(fmt.Sprintf("Turn: %s | Mode: %s", sideToMoveString(m.chessBoard), m.mode))
+	inputCumModeLine := fmt.Sprintf("%s | %s", inputLine, modeLine)
+	statusLine := statusStyle.Render(m.status)
+	helpLine := helpStyle.Render(m.helpLine)
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, boardArea, MoveLog)
+
+	screen := lipgloss.JoinVertical(lipgloss.Left, banner, "", body, "", inputCumModeLine, statusLine, helpLine)
+
+	view := tea.NewView(screen)
+	view.BackgroundColor = lipgloss.Color("0")
+
+	cursorY := 41
+	cursorX := len("> Enter your move: " + m.input)
+	view.Cursor = tea.NewCursor(cursorX, cursorY)
+	view.Cursor.Blink = true
+
+	return view
 }
 
-// viewSummary renders an end-of-game summary screen.
-//
-// It reuses the standard board + move log layout, and adds a result banner plus a short
-// instruction footer. Navigation through historical positions is intentionally not
-// implemented here yet; the summary is a stable, read-only view.
-func (model *Model) viewSummary() string {
-	boardLines := renderBoard(model.board)
-	logLines := renderMoveLog(model.moveLog, 40)
-
-	top := BoardSideByMoveSide(boardLines, logLines, "   ")
-
-	resultLine := "Result: (unknown)"
-	if model.summary.Result != "" {
-		resultLine = "Result: " + model.summary.Result
-	}
-
-	reasonLine := ""
-	if model.summary.Reason != "" {
-		reasonLine = "Reason: " + model.summary.Reason
-	}
-
-	turnLine := fmt.Sprintf("Final turn (would be): %s | Mode: %s", sideToMoveString(model.board), model.mode)
-
-	helpLine := "Summary view. Use :new to play again, :quit to exit."
-	inputLine := fmt.Sprintf("> Enter Command: %s", model.input)
-	parts := []string{
-		strings.Join(top, "\n"),
-		resultLine,
-		reasonLine,
-		turnLine,
-		helpLine,
-		inputLine,
-	}
-
-	// Avoid an empty "Reason:" line when no reason was set.
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if strings.TrimSpace(p) == "" {
-			continue
-		}
-		out = append(out, p)
-	}
-
-	return strings.Join(out, "\n") + "\n"
-}
-
-// sideToMoveString turns engine turn state into a user-facing label.
+// sideToMoveString returns "White" or "Black" based on the board's side to move, or "?" if nil.
 func sideToMoveString(board *engineNormal.BoardState) string {
 	if board == nil {
 		return "?"
@@ -102,190 +71,125 @@ func sideToMoveString(board *engineNormal.BoardState) string {
 	return "Black"
 }
 
-// renderBoard returns an ASCII board suitable for terminal display.
-//
-// Invariant:
-//   - The engine board is indexed [rank][file], where rank increases from '1' to '8'.
-//   - This renderer prints ranks from 8 down to 1, matching standard chess diagrams.
-func renderBoard(board *engineNormal.BoardState) []string {
-	if board == nil {
-		return []string{
-			"8 . . . . . . . .",
-			"7 . . . . . . . .",
-			"6 . . . . . . . .",
-			"5 . . . . . . . .",
-			"4 . . . . . . . .",
-			"3 . . . . . . . .",
-			"2 . . . . . . . .",
-			"1 . . . . . . . .",
-			"  a b c d e f g h",
-		}
-	}
-
-	lines := make([]string, 0, 9)
-
-	for rank := 7; rank >= 0; rank-- {
-		var b strings.Builder
-		b.WriteString(fmt.Sprintf("%d ", rank+1))
-
-		for file := 0; file <= 7; file++ {
-			p := board.ChessBoard[rank][file]
-			b.WriteString(engineNormal.PieceIcon(p))
-			b.WriteString(" ")
-		}
-		lines = append(lines, b.String())
-	}
-
-	lines = append(lines, "  a b c d e f g h")
-	return lines
-}
-
-// renderMoveLog formats a list of plies into full-move lines ("1. ...").
-//
-// Why this exists:
-//   - The engine is concerned with legality and state transitions.
-//   - The TUI stores a UI-friendly `MoveRecord` so it can render history without
-//     re-deriving details after the board changes.
-//
-// `max` limits how many plies are shown (0 or negative means show all).
-func renderMoveLog(moves []MoveRecord, max int) []string {
-	lines := []string{"Moves:"}
-
+// renderMoveLog formats the move history into a padded column of paired move lines.
+func renderMoveLog(moves []MoveRecord) string {
+	lines := []string{"Moves: "}
 	if len(moves) == 0 {
 		lines = append(lines, "(none)")
-		return lines
-	}
-
-	start := 0
-	if max > 0 && len(moves) > max {
-		start = len(moves) - max
-	}
-
-	visible := moves[start:]
-	if len(visible) == 0 {
-		lines = append(lines, "(none)")
-		return lines
-	}
-
-	// Keep the log aligned to "White, Black" pairs. If the first visible ply is
-	// Black, drop it rather than printing a partial line.
-	if len(visible) > 0 && visible[0].Side == engineNormal.Black {
-		visible = visible[1:]
-	}
-
-	for i := 0; i < len(visible); i += 2 {
-		white := visible[i]
-		black := MoveRecord{}
-		hasBlack := i+1 < len(visible)
-		if hasBlack {
-			black = visible[i+1]
+	} else {
+		for i := 0; i < len(moves); i += 2 {
+			move := moves[i]
+			line := fmt.Sprintf("%2d. %-7s", (move.Ply+1)/2, formatMoveRecord(move))
+			if i+1 < len(moves) {
+				line += fmt.Sprintf("\t %-7s", formatMoveRecord(moves[i+1]))
+			}
+			lines = append(lines, line)
 		}
+	}
+	for len(lines) < 34 {
+		lines = append(lines, "")
+	}
+	return logStyle.Render(strings.Join(lines, "\n"))
+}
 
-		moveNumber := (white.Ply + 1) / 2
-		wStr := formatLongAlgebraic(white)
-		bStr := ""
-		if hasBlack {
-			bStr = formatLongAlgebraic(black)
+// formatMoveRecord formats a single move for display, using S(from -> to) for swaps and from -> to for normal moves.
+func formatMoveRecord(m MoveRecord) string {
+	if m.isSwap {
+		return fmt.Sprintf("S(%s -> %s)", engineNormal.SquareNotation(m.From), engineNormal.SquareNotation(m.To))
+	}
+	return fmt.Sprintf("%c%c -> %c%c", m.From.File+'a', m.From.Rank+'1', m.To.File+'a', m.To.Rank+'1')
+}
+
+const cellW = 7
+
+var (
+	topBorder = buildBorder('┌', '┬', '┐')
+	midBorder = buildBorder('├', '┼', '┤')
+	botBorder = buildBorder('└', '┴', '┘')
+)
+
+// buildBorder constructs a horizontal border line with the given corner and junction runes.
+func buildBorder(left, mid, right rune) string {
+	var b strings.Builder
+	b.WriteRune(left)
+	for i := 0; i < 8; i++ {
+		for j := 0; j < cellW; j++ {
+			b.WriteRune('─')
 		}
+		if i < 7 {
+			b.WriteRune(mid)
+		}
+	}
+	b.WriteRune(right)
+	return b.String()
+}
 
-		if bStr == "" {
-			lines = append(lines, fmt.Sprintf("%2d. %-10s", moveNumber, wStr))
+// spacerRow returns an empty board row used for visual padding between piece rows.
+func spacerRow() string {
+	var b strings.Builder
+	b.WriteRune('│')
+	for range 8 {
+		b.WriteString(strings.Repeat(" ", cellW))
+		b.WriteRune('│')
+	}
+	return b.String()
+}
+
+// pieceRow renders a single rank's pieces with box-drawing borders.
+func pieceRow(board *engineNormal.BoardState, rank int) string {
+	var b strings.Builder
+	b.WriteRune('│')
+	for file := 0; file < 8; file++ {
+		b.WriteString(pieceCell(board.ChessBoard[rank][file]))
+		b.WriteRune('│')
+	}
+	return b.String()
+}
+
+// pieceCell returns a cellW-wide string containing the piece icon, centered.
+func pieceCell(piece engineNormal.Piece) string {
+	s := engineNormal.PieceIcon(piece)
+	if s == "." {
+		return strings.Repeat(" ", cellW)
+	}
+	pad := (cellW - 1) / 2 // 3 for cellW=7
+	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", cellW-1-pad)
+}
+
+// fileLabelRow renders the file labels (a-h) centered beneath the board columns.
+func fileLabelRow() string {
+	var b strings.Builder
+	b.WriteString("    ") // align past rank prefix area
+	for file := 0; file < 8; file++ {
+		pad := (cellW - 1) / 2
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteByte(byte('a' + file))
+		b.WriteString(strings.Repeat(" ", cellW-pad))
+	}
+	return b.String()
+}
+
+// renderBoard produces the full board rendering with rank labels, piece rows, borders, and file labels.
+func renderBoard(board *engineNormal.BoardState) string {
+	var b strings.Builder
+	b.Grow(68 * 33)
+
+	b.WriteString("   " + topBorder + "\n")
+
+	for rank := 7; rank >= 0; rank-- {
+		b.WriteString("   " + spacerRow() + "\n")
+		b.WriteString(fmt.Sprintf(" %d ", rank+1))
+		b.WriteString(pieceRow(board, rank))
+		b.WriteByte('\n')
+		b.WriteString("   " + spacerRow() + "\n")
+
+		if rank > 0 {
+			b.WriteString("   " + midBorder + "\n")
 		} else {
-			lines = append(lines, fmt.Sprintf("%2d. %-10s %-10s", moveNumber, wStr, bStr))
+			b.WriteString("   " + botBorder + "\n")
 		}
 	}
 
-	return lines
-}
-
-// formatLongAlgebraic renders a single `MoveRecord` using a long-algebraic-like format.
-//
-// The output is intentionally simple and stable for a TUI move list:
-//   - Swap "S(e4,h8)": returned directly from the Raw field
-//   - Castling: "O-O" or "O-O-O"
-//   - Otherwise: "<piece><from>< - or x ><to>[=<promotionPiece>]"
-func formatLongAlgebraic(m MoveRecord) string {
-	if len(m.Raw) >= 2 && m.Raw[:2] == "S(" {
-		return m.Raw
-	}
-
-	if m.IsCastleKingSide {
-		return "O-O"
-	}
-	if m.IsCastleQueenSide {
-		return "O-O-O"
-	}
-
-	pieceIcon := engineNormal.PieceIcon(engineNormal.Piece{Type: m.PieceType, Color: m.Side})
-	from := engineNormal.SquareNotation(m.From)
-	to := engineNormal.SquareNotation(m.To)
-
-	sep := "-"
-	if m.IsCapture {
-		sep = "x"
-	}
-
-	s := pieceIcon + from + sep + to
-
-	if m.Promotion != engineNormal.None {
-		s += "=" + engineNormal.PieceIcon(engineNormal.Piece{Type: m.Promotion, Color: m.Side})
-	}
-
-	return s
-}
-
-// BoardSideByMoveSide stitches the board and move log into a side-by-side layout.
-//
-// It pads the left block to a uniform width (computed by rune count, not bytes)
-// so the right block aligns cleanly even with non-ASCII characters.
-func BoardSideByMoveSide(left []string, right []string, gap string) []string {
-	if gap == "" {
-		gap = "|"
-	}
-
-	leftWidth := 0
-	for _, l := range left {
-		if w := runeWidth(l); w > leftWidth {
-			leftWidth = w
-		}
-	}
-
-	height := len(left)
-	if len(right) > height {
-		height = len(right)
-	}
-
-	out := make([]string, 0, height)
-	for i := 0; i < height; i++ {
-		var l, r string
-		if i < len(left) {
-			l = left[i]
-		}
-		if i < len(right) {
-			r = right[i]
-		}
-
-		leftPadded := padRight(l, leftWidth)
-		if r == "" {
-			out = append(out, leftPadded)
-		} else {
-			out = append(out, leftPadded+gap+r)
-		}
-	}
-
-	return out
-}
-
-// padRight pads a string using spaces until it reaches the desired rune width.
-func padRight(s string, width int) string {
-	w := runeWidth(s)
-	if w >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-w)
-}
-
-// runeWidth returns the number of runes (not bytes) in s for basic terminal alignment.
-func runeWidth(s string) int {
-	return len([]rune(s))
+	b.WriteString(fileLabelRow())
+	return b.String()
 }

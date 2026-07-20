@@ -6,461 +6,136 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	engineChaos "github.com/ri5hii/ChaoSwap/engine/engine-chaos"
 	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
-// NewModel constructs the initial Bubble Tea model for a fresh game session.
-//
-// Why: the model is the single owner of UI state (input buffer, status text, mode)
-// and the position pointer, so creating it in one place makes startup and
-// resets consistent.
+// NewModel initialises a Model with a standard starting position, seeded RNG, default mode, and welcome status.
 func NewModel() *Model {
 	board := engineNormal.NewGamePosition()
+
 	return &Model{
-		board: board,
+		chessBoard: board,
 		chaos: &engineChaos.State{
 			Base: board,
 			RNG:  rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano()>>32))),
 		},
+
 		mode:     "Normal",
 		input:    "",
 		status:   "Welcome to ChaoSwap! Type :help for commands.",
-		moveLog:  []MoveRecord{},
-		quitting: false,
+		helpLine: "Press <tab> to switch mode. S is used to confirm swap in chaos mode",
+
+		moveLog: []MoveRecord{},
 	}
 }
 
-// Init returns the initial Bubble Tea command.
-//
-// We don't need any startup I/O (timers, async loads, etc.), so this is nil.
-func (model *Model) Init() tea.Cmd {
+// Init satisfies tea.Model; no initial command is needed.
+func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
-// Update is the Bubble Tea reducer for the app.
-//
-// Inputs:
-//   - Commands start with ':' (e.g. ':help', ':quit').
-//   - Otherwise we treat the input as coordinate move notation (e.g. 'e2e4' or 'e7e8q').
-//
-// Promotion invariant:
-// If the user enters a 4-char move that appears to be a pawn reaching the last rank,
-// the UI switches into `awaitingPromotion` and the next Enter is interpreted as a
-// promotion choice: 'q', 'r', 'b', or 'n'. This lets users type either `e7e8q`
-// directly or `e7e8` then choose interactively.
-//
-// Chaos mode:
-//   - Pressing S performs a random legal swap for the side to move.
-func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := message.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
-			model.quitting = true
-			return model, tea.Quit
-
-		case tea.KeyEnter:
-			raw := strings.TrimSpace(model.input)
-			parsed := engineNormal.ParseInput(raw)
-
-			if model.awaitingPromotion {
-				return model.handlePromotionSelection(parsed)
+// Update handles key presses for mode switching, move entry, and chaos swap execution.
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch {
+		case msg.String() == "ctrl+c":
+			return m, tea.Quit
+		case msg.String() == "tab":
+			if m.mode == "Chaos" {
+				m.mode = "Normal"
+				m.status = "Switched to Normal mode."
+			} else {
+				m.mode = "Chaos"
+				m.status = "Switched to Chaos mode."
+			}
+			return m, nil
+		case msg.String() == "enter":
+			raw := strings.TrimSpace(m.input)
+			if raw == "" {
+				return m, nil
+			}
+			valid, from, to, promo, err := engineNormal.IsMoveNotationValid(raw)
+			if err != nil {
+				m.status = err.Error()
+				return m, nil
+			}
+			if !valid {
+				m.status = "Invalid move notation."
+				return m, nil
 			}
 
-			if strings.HasPrefix(raw, ":") {
-				return model.handleCommand(raw)
+			piece := m.chessBoard.PieceAt(from)
+			var movePlayed string
+			if promo != engineNormal.None {
+				movePlayed = fmt.Sprintf("(%s -> %s)%s", engineNormal.SquareNotation(from), engineNormal.SquareNotation(to), engineNormal.PieceIcon(engineNormal.Piece{
+					Type:  promo,
+					Color: piece.Color,
+				}))
+			} else {
+				movePlayed = fmt.Sprintf("(%s -> %s)", engineNormal.SquareNotation(from), engineNormal.SquareNotation(to))
 			}
 
-			// Summary-mode invariant: once the game ends we switch into a read-only summary screen.
-			// Moves are not accepted in summary mode (only commands like :quit or a future :new).
-			if model.summary.Active {
-				model.status = "Game over. You are in summary view. Use :quit to exit."
-				model.input = ""
-				return model, nil
+			_, moveErr := m.chessBoard.MakeMove(piece, from, to, promo)
+			if moveErr != nil {
+				m.status = "Error: " + moveErr.Error()
+			} else {
+				m.status = "Played: " + movePlayed
+				m.moveLog = append(m.moveLog, MoveRecord{
+					Ply:       len(m.moveLog) + 1,
+					Side:      piece.Color,
+					pieceType: piece.Type,
+					From:      from,
+					To:        to,
+				})
 			}
-
-			return model.handleMoveInput(parsed)
-
-		case tea.KeyBackspace:
-			if len(model.input) > 0 {
-				model.input = model.input[:len(model.input)-1]
+			m.input = ""
+			return m, nil
+		case msg.String() == "backspace":
+			if len(m.input) > 0 {
+				m.input = m.input[:len(m.input)-1]
 			}
-			return model, nil
-
+			return m, nil
+		case msg.String() == "s", msg.String() == "S":
+			if m.mode == "Chaos" {
+				return m.handleChaoSwap()
+			}
+			m.input += msg.Text
+			return m, nil
 		default:
-			if len(msg.Runes) > 0 {
-				if model.mode == "Chaos" && (msg.Runes[0] == 's' || msg.Runes[0] == 'S') {
-					return model.handleChaoSwap()
+			if m.mode == "Normal" {
+				if len(m.input) < 5 {
+					m.input += msg.Text
 				}
-				model.input += string(msg.Runes)
-				return model, nil
+				return m, nil
+			} else {
+				m.status = "Switch to Normal mode to apply move."
 			}
 		}
 	}
-
-	return model, nil
+	return m, nil
 }
 
-// handleChaoSwap executes a random legal swap for the side to move in Chaos mode.
-//
-// It:
-//   - picks a random legal swap pair via PickSwapPair
-//   - applies it via TrySwap (shares the board pointer)
-//   - logs the swap in the move history
-//   - runs end-of-game detection (checkmate, stalemate, insufficient material)
-//
-// If no legal swap is available, it reports the failure without changing the board.
-func (model *Model) handleChaoSwap() (tea.Model, tea.Cmd) {
-	if model.summary.Active {
-		model.status = "Game over. Use :quit to exit."
-		model.input = ""
-		return model, nil
-	}
-
-	swap, ok := model.chaos.PickSwapPair()
+// handleChaoSwap picks a random legal swap and applies it, logging the result.
+func (m *Model) handleChaoSwap() (tea.Model, tea.Cmd) {
+	swap, ok := m.chaos.PickSwapPair()
 	if !ok {
-		model.status = "No legal swap available."
-		model.input = ""
-		return model, nil
+		m.status = "No legal swap available."
+		return m, nil
 	}
 
-	model.chaos.TrySwap(swap)
+	m.chaos.TrySwap(swap)
 
-	raw := fmt.Sprintf("S(%s,%s)", engineNormal.SquareNotation(swap.A), engineNormal.SquareNotation(swap.B))
-	model.moveLog = append(model.moveLog, MoveRecord{
-		Ply:  len(model.moveLog) + 1,
-		Side: 1 - model.board.SideToMove,
-		Raw:  raw,
+	m.moveLog = append(m.moveLog, MoveRecord{
+		isSwap: true,
+		Ply:    len(m.moveLog) + 1,
+		Side:   1 - m.chessBoard.SideToMove,
+		From:   swap.A,
+		To:     swap.B,
 	})
-	model.status = "Swap: " + raw
-	model.input = ""
-
-	// End-of-game detection is done after applying the move.
-	checkmate, cmErr := model.board.IsCheckMate()
-	if cmErr != nil {
-		return model, nil
-	}
-	if checkmate {
-		// In checkmate, SideToMove is the checkmated side (the side that cannot move).
-		winner := "White"
-		if model.board.SideToMove == engineNormal.Black {
-			winner = "Black"
-		}
-
-		model.summary.Active = true
-		model.summary.Result = winner + " wins"
-		model.summary.Reason = "Checkmate"
-		model.summary.Cursor = len(model.moveLog)
-		model.status = "Game over by checkmate."
-		return model, nil
-	}
-
-	stalemate, smErr := model.board.IsStaleMate()
-	if smErr != nil {
-		return model, nil
-	}
-	if stalemate {
-		model.summary.Active = true
-		model.summary.Result = "Draw"
-		model.summary.Reason = "Stalemate"
-		model.summary.Cursor = len(model.moveLog)
-		model.status = "Game over by stalemate."
-		return model, nil
-	}
-
-	// Draw detection: insufficient material.
-	//
-	// Note: draw detection uses DrawByInsufficentMaterial (spelled as-is).
-	if model.board.DrawByInsufficentMaterial() {
-		model.summary.Active = true
-		model.summary.Result = "Draw"
-		model.summary.Reason = "Insufficient material"
-		model.summary.Cursor = len(model.moveLog)
-		model.status = "Game over by insufficient material."
-		return model, nil
-	}
-
-	return model, nil
-}
-
-// handlePromotionSelection consumes a promotion choice while `awaitingPromotion` is true.
-//
-// It reconstructs the full move notation from the stored from/to squares plus the
-// selected suffix, then applies it through the usual move pipeline.
-//
-// Commands:
-//   - q/r/b/n: apply promotion
-//   - cancel (or 'c'): exit the promotion flow without changing the state
-func (model *Model) handlePromotionSelection(parsed string) (tea.Model, tea.Cmd) {
-	if parsed == "" {
-		model.status = "Choose promotion piece: q (queen), r (rook), b (bishop), n (knight)."
-		model.input = ""
-		return model, nil
-	}
-
-	switch parsed {
-	case "q", "r", "b", "n":
-		notation := fmt.Sprintf(
-			"%s%s%s",
-			engineNormal.SquareNotation(model.promotionFrom),
-			engineNormal.SquareNotation(model.promotionTo),
-			parsed,
-		)
-
-		err := model.ApplyMoveNotation(notation)
-		if err != nil {
-			model.status = err.Error()
-			model.input = ""
-			return model, nil
-		}
-
-		model.awaitingPromotion = false
-		model.promotionFrom = engineNormal.NoSquare
-		model.promotionTo = engineNormal.NoSquare
-		model.input = ""
-		return model, nil
-
-	case "c", "cancel":
-		model.awaitingPromotion = false
-		model.promotionFrom = engineNormal.NoSquare
-		model.promotionTo = engineNormal.NoSquare
-		model.status = "Promotion cancelled. Enter the move again with a suffix, e.g. e7e8q."
-		model.input = ""
-		return model, nil
-
-	default:
-		model.status = "Invalid promotion choice. Use q/r/b/n (or 'cancel')."
-		model.input = ""
-		return model, nil
-	}
-}
-
-// handleCommand executes ':'-prefixed user commands.
-//
-// Input is normalized via engineNormal.ParseInput so users can type variants like
-// ':Help', ': help', or ':he-lp'.
-func (model *Model) handleCommand(raw string) (tea.Model, tea.Cmd) {
-	cmd := strings.TrimSpace(strings.TrimPrefix(raw, ":"))
-	cmd = engineNormal.ParseInput(cmd)
-
-	switch cmd {
-	case "", "help", "h":
-		model.status = `
-Commands (prefix with ':'):
-  :help | :h             Show this help
-  :description | :d      Show game description
-  :quit | :q             Quit
-  :normal                Set Normal mode
-  :chaos                 Set Chaos mode
-
-Moves:
-  e2e4                   Coordinate move input
-  e7e8q / e7e8r / ...     Promotion suffix: q r b n
-
-Notes:
-  - Commands must start with ':'.
-  - Promotion without a suffix will prompt you to choose q/r/b/n.
-`
-		model.input = ""
-		return model, nil
-
-	case "description", "d":
-		model.status = `
-Modes:
-  Normal: Standard chess rules.
-  Chaos:  (WIP in this TUI) A twist mode for swapping pieces (rules to be implemented).
-
-Promotion:
-  Use e7e8q (or r/b/n) to choose the promotion piece, or enter e7e8 and select when prompted.
-`
-		model.input = ""
-		return model, nil
-
-	case "quit", "q":
-		model.quitting = true
-		return model, tea.Quit
-
-	case "normal":
-		model.mode = "Normal"
-		model.status = "Switched to Normal mode."
-		model.input = ""
-		return model, nil
-
-	case "chaos":
-		model.mode = "Chaos"
-		model.status = "Switched to Chaos mode."
-		model.input = ""
-		return model, nil
-
-	default:
-		model.status = "Unknown command. Try :help."
-		model.input = ""
-		return model, nil
-	}
-}
-
-// handleMoveInput applies non-command input as a move attempt.
-//
-// It also detects the "promotion without suffix" case and transitions into
-// `awaitingPromotion` rather than immediately failing or auto-promoting.
-func (model *Model) handleMoveInput(parsed string) (tea.Model, tea.Cmd) {
-	if parsed == "" {
-		model.input = ""
-		return model, nil
-	}
-
-	if len(parsed) == 4 && model.PromotionInputWithoutSuffix(parsed) {
-		_, fromSq, toSq, _, err := engineNormal.IsMoveNotationValid(parsed)
-		if err != nil {
-			model.status = err.Error()
-			model.input = ""
-			return model, nil
-		}
-
-		model.awaitingPromotion = true
-		model.promotionFrom = fromSq
-		model.promotionTo = toSq
-		model.status = "Promotion! Choose: q (queen), r (rook), b (bishop), n (knight). (or 'cancel')"
-		model.input = ""
-		return model, nil
-	}
-
-	if err := model.ApplyMoveNotation(parsed); err != nil {
-		model.status = err.Error()
-	}
-
-	model.input = ""
-	return model, nil
-}
-
-// ApplyMoveNotation validates and applies a coordinate move notation to the board state.
-//
-// Responsibility split:
-//   - validation/parsing is delegated to engineNormal.IsMoveNotationValid
-//   - move application is delegated to board.MakeMove
-//   - UI bookkeeping (status + moveLog) happens here
-//
-// Log invariant:
-// MoveRecord is populated with enough info to render later without needing to
-// re-derive everything from historical positions.
-func (model *Model) ApplyMoveNotation(notation string) error {
-	valid, fromSquare, toSquare, promotionType, err := engineNormal.IsMoveNotationValid(notation)
-	if err != nil {
-		return err
-	}
-	if !valid {
-		return fmt.Errorf("invalid move notation: use e2e4 (or e7e8q for promotion)")
-	}
-
-	piece := model.board.PieceAt(fromSquare)
-	target := model.board.PieceAt(toSquare)
-
-	_, moveErr := model.board.MakeMove(piece, fromSquare, toSquare, promotionType)
-	if moveErr != nil {
-		return moveErr
-	}
-
-	ply := len(model.moveLog) + 1
-	record := MoveRecord{
-		Ply:       ply,
-		Side:      piece.Color,
-		PieceType: piece.Type,
-		From:      fromSquare,
-		To:        toSquare,
-		IsCapture: target.Type != engineNormal.None,
-		Promotion: promotionType,
-		Raw:       notation,
-	}
-
-	fileDiff := toSquare.File - fromSquare.File
-	rankDiff := toSquare.Rank - fromSquare.Rank
-	if piece.Type == engineNormal.King && rankDiff == 0 && fileDiff == 2 {
-		record.IsCastleKingSide = true
-	}
-	if piece.Type == engineNormal.King && rankDiff == 0 && fileDiff == -2 {
-		record.IsCastleQueenSide = true
-	}
-
-	model.status = "Played: " + notation
-	model.moveLog = append(model.moveLog, record)
-
-	// End-of-game detection is done after applying the move.
-	checkmate, cmErr := model.board.IsCheckMate()
-	if cmErr != nil {
-		return cmErr
-	}
-	if checkmate {
-		// In checkmate, SideToMove is the checkmated side (the side that cannot move).
-		winner := "White"
-		if model.board.SideToMove == engineNormal.Black {
-			winner = "Black"
-		}
-
-		model.summary.Active = true
-		model.summary.Result = winner + " wins"
-		model.summary.Reason = "Checkmate"
-		model.summary.Cursor = len(model.moveLog)
-		model.status = "Game over by checkmate."
-		return nil
-	}
-
-	stalemate, smErr := model.board.IsStaleMate()
-	if smErr != nil {
-		return smErr
-	}
-	if stalemate {
-		model.summary.Active = true
-		model.summary.Result = "Draw"
-		model.summary.Reason = "Stalemate"
-		model.summary.Cursor = len(model.moveLog)
-		model.status = "Game over by stalemate."
-		return nil
-	}
-
-	// Draw detection: insufficient material.
-	//
-	// Note: draw detection uses DrawByInsufficentMaterial (spelled as-is).
-	if model.board.DrawByInsufficentMaterial() {
-		model.summary.Active = true
-		model.summary.Result = "Draw"
-		model.summary.Reason = "Insufficient material"
-		model.summary.Cursor = len(model.moveLog)
-		model.status = "Game over by insufficient material."
-		return nil
-	}
-
-	return nil
-}
-
-// PromotionInputWithoutSuffix reports whether a 4-character notation looks like a pawn
-// move reaching the last rank, which requires a promotion choice.
-//
-// This is intentionally "UI heuristic" logic: the engine still performs the real
-// legality checks when the move is applied.
-func (model *Model) PromotionInputWithoutSuffix(notation string) bool {
-	if len(notation) != 4 {
-		return false
-	}
-
-	_, fromSquare, toSquare, _, err := engineNormal.IsMoveNotationValid(notation)
-	if err != nil {
-		return false
-	}
-
-	piece := model.board.PieceAt(fromSquare)
-	if piece.Type != engineNormal.Pawn {
-		return false
-	}
-
-	if piece.Color == engineNormal.White && toSquare.Rank == 7 {
-		return true
-	}
-	if piece.Color == engineNormal.Black && toSquare.Rank == 0 {
-		return true
-	}
-
-	return false
+	m.status = fmt.Sprintf("Swap: %s -> %s", engineNormal.SquareNotation(swap.A), engineNormal.SquareNotation(swap.B))
+	return m, nil
 }
