@@ -33,7 +33,7 @@ func (m *Model) View() tea.View {
 	MoveLog := renderMoveLog(m.moveLog)
 
 	inputLine := inputStyle.Render("> Enter your move: " + m.input + " ")
-	modeLine := modeStyle.Render("Mode: " + m.mode)
+	modeLine := modeStyle.Render(fmt.Sprintf("Turn: %s | Mode: %s", sideToMoveString(m.chessBoard), m.mode))
 	inputCumModeLine := fmt.Sprintf("%s | %s", inputLine, modeLine)
 	statusLine := statusStyle.Render(m.status)
 	helpLine := helpStyle.Render(m.helpLine)
@@ -47,6 +47,16 @@ func (m *Model) View() tea.View {
 	return view
 }
 
+func sideToMoveString(board *engineNormal.BoardState) string {
+	if board == nil {
+		return "?"
+	}
+	if board.SideToMove == engineNormal.White {
+		return "White"
+	}
+	return "Black"
+}
+
 func renderMoveLog(moves []MoveRecord) string {
 	lines := []string{"Moves: "}
 	if len(moves) == 0 {
@@ -56,7 +66,7 @@ func renderMoveLog(moves []MoveRecord) string {
 			move := moves[i]
 			line := fmt.Sprintf("%2d. %-7s", (move.Ply+1)/2, formatMoveRecord(move))
 			if i+1 < len(moves) {
-				line += fmt.Sprintf(" %-7s", formatMoveRecord(moves[i+1]))
+				line += fmt.Sprintf("\t %-7s", formatMoveRecord(moves[i+1]))
 			}
 			lines = append(lines, line)
 		}
