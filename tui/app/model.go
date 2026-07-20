@@ -5,6 +5,7 @@ import (
 	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
+// Model holds all UI state for the ChaoSwap TUI.
 type Model struct {
 	chessBoard *engineNormal.BoardState
 	chaos      *engineChaos.State
@@ -18,6 +19,7 @@ type Model struct {
 	summary SummaryState
 }
 
+// MoveRecord stores a single move or swap entry for the move log.
 type MoveRecord struct {
 	pieceType engineNormal.PieceType
 	Side      engineNormal.PieceColor
@@ -36,8 +38,10 @@ type MoveRecord struct {
 	PromotionType engineNormal.PieceType
 }
 
+// SummaryState holds end-of-game information for the summary screen. Currently unused.
 type SummaryState struct{}
 
+// Banner holds the ASCII art banner displayed at the top of the screen. Currently unused.
 type Banner struct {
 	gameBanner string
 }

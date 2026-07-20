@@ -16,6 +16,7 @@ var (
 	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.White)
 	helpStyle   = lipgloss.NewStyle().Foreground(lipgloss.White)
 
+	// boardPad adds right-side padding between the board and the move log.
 	boardPad = lipgloss.NewStyle().PaddingRight(4)
 
 	placeholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
@@ -24,6 +25,7 @@ var (
 	hasInput = false
 )
 
+// View renders the full TUI screen: banner, board, move log, input line, mode indicator, status, and help text.
 func (m *Model) View() tea.View {
 	banner := ` ██████╗██╗  ██╗ █████╗  ██████╗ ███████╗██╗    ██╗ █████╗ ██████╗ 
 ██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔════╝██║    ██║██╔══██╗██╔══██╗
@@ -58,6 +60,7 @@ func (m *Model) View() tea.View {
 	return view
 }
 
+// sideToMoveString returns "White" or "Black" based on the board's side to move, or "?" if nil.
 func sideToMoveString(board *engineNormal.BoardState) string {
 	if board == nil {
 		return "?"
@@ -68,6 +71,7 @@ func sideToMoveString(board *engineNormal.BoardState) string {
 	return "Black"
 }
 
+// renderMoveLog formats the move history into a padded column of paired move lines.
 func renderMoveLog(moves []MoveRecord) string {
 	lines := []string{"Moves: "}
 	if len(moves) == 0 {
@@ -88,6 +92,7 @@ func renderMoveLog(moves []MoveRecord) string {
 	return logStyle.Render(strings.Join(lines, "\n"))
 }
 
+// formatMoveRecord formats a single move for display, using S(from -> to) for swaps and from -> to for normal moves.
 func formatMoveRecord(m MoveRecord) string {
 	if m.isSwap {
 		return fmt.Sprintf("S(%s -> %s)", engineNormal.SquareNotation(m.From), engineNormal.SquareNotation(m.To))
@@ -103,6 +108,7 @@ var (
 	botBorder = buildBorder('└', '┴', '┘')
 )
 
+// buildBorder constructs a horizontal border line with the given corner and junction runes.
 func buildBorder(left, mid, right rune) string {
 	var b strings.Builder
 	b.WriteRune(left)
@@ -118,6 +124,7 @@ func buildBorder(left, mid, right rune) string {
 	return b.String()
 }
 
+// spacerRow returns an empty board row used for visual padding between piece rows.
 func spacerRow() string {
 	var b strings.Builder
 	b.WriteRune('│')
@@ -128,6 +135,7 @@ func spacerRow() string {
 	return b.String()
 }
 
+// pieceRow renders a single rank's pieces with box-drawing borders.
 func pieceRow(board *engineNormal.BoardState, rank int) string {
 	var b strings.Builder
 	b.WriteRune('│')
@@ -138,6 +146,7 @@ func pieceRow(board *engineNormal.BoardState, rank int) string {
 	return b.String()
 }
 
+// pieceCell returns a cellW-wide string containing the piece icon, centered.
 func pieceCell(piece engineNormal.Piece) string {
 	s := engineNormal.PieceIcon(piece)
 	if s == "." {
@@ -147,6 +156,7 @@ func pieceCell(piece engineNormal.Piece) string {
 	return strings.Repeat(" ", pad) + s + strings.Repeat(" ", cellW-1-pad)
 }
 
+// fileLabelRow renders the file labels (a-h) centered beneath the board columns.
 func fileLabelRow() string {
 	var b strings.Builder
 	b.WriteString("    ") // align past rank prefix area
@@ -159,6 +169,7 @@ func fileLabelRow() string {
 	return b.String()
 }
 
+// renderBoard produces the full board rendering with rank labels, piece rows, borders, and file labels.
 func renderBoard(board *engineNormal.BoardState) string {
 	var b strings.Builder
 	b.Grow(68 * 33)

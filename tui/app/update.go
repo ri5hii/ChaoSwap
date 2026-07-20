@@ -12,6 +12,7 @@ import (
 	engineNormal "github.com/ri5hii/ChaoSwap/engine/engine-normal"
 )
 
+// NewModel initialises a Model with a standard starting position, seeded RNG, default mode, and welcome status.
 func NewModel() *Model {
 	board := engineNormal.NewGamePosition()
 
@@ -31,10 +32,12 @@ func NewModel() *Model {
 	}
 }
 
+// Init satisfies tea.Model; no initial command is needed.
 func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
+// Update handles key presses for mode switching, move entry, and chaos swap execution.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -55,9 +58,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if raw == "" {
 				return m, nil
 			}
-			// if strings.HasPrefix(raw, ":") {
-			// 	return m.handleCommand(raw)
-			// }
 			valid, from, to, promo, err := engineNormal.IsMoveNotationValid(raw)
 			if err != nil {
 				m.status = err.Error()
@@ -119,6 +119,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleChaoSwap picks a random legal swap and applies it, logging the result.
 func (m *Model) handleChaoSwap() (tea.Model, tea.Cmd) {
 	swap, ok := m.chaos.PickSwapPair()
 	if !ok {
