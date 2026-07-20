@@ -25,7 +25,12 @@ var (
 )
 
 func (m *Model) View() tea.View {
-	banner := ""
+	banner := ` ██████╗██╗  ██╗ █████╗  ██████╗ ███████╗██╗    ██╗ █████╗ ██████╗ 
+██╔════╝██║  ██║██╔══██╗██╔═══██╗██╔════╝██║    ██║██╔══██╗██╔══██╗
+██║     ███████║███████║██║   ██║███████╗██║ █╗ ██║███████║██████╔╝
+██║     ██╔══██║██╔══██║██║   ██║╚════██║██║███╗██║██╔══██║██╔═══╝ 
+╚██████╗██║  ██║██║  ██║╚██████╔╝███████║╚███╔███╔╝██║  ██║██║     
+ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝     `
 
 	boardArea := renderBoard(m.chessBoard)
 	boardArea = boardPad.Render(boardArea)
@@ -40,11 +45,12 @@ func (m *Model) View() tea.View {
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, boardArea, MoveLog)
 
-	screen := lipgloss.JoinVertical(lipgloss.Left, banner, body, "", inputCumModeLine, statusLine, helpLine)
+	screen := lipgloss.JoinVertical(lipgloss.Left, banner, "", body, "", inputCumModeLine, statusLine, helpLine)
 
 	view := tea.NewView(screen)
+	view.BackgroundColor = lipgloss.Color("0")
 
-	cursorY := 36
+	cursorY := 41
 	cursorX := len("> Enter your move: " + m.input)
 	view.Cursor = tea.NewCursor(cursorX, cursorY)
 	view.Cursor.Blink = true
